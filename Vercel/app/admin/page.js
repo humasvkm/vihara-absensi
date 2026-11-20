@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -30,9 +30,12 @@ export default function AdminPage() {
   const [loadingAbsensi, setLoadingAbsensi] = useState(false);
   const [searchNama, setSearchNama] = useState('');
   const [loadingRingkasan, setLoadingRingkasan] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const ADMIN_PIN = '123456';
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const intervalRef = useRef(null);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -63,11 +66,22 @@ export default function AdminPage() {
   const muatAbsensiHariIni = async () => {
     setLoadingAbsensi(true);
     try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAbsensiHariIni' }) });
+      const res = await fetch('/api/proxy', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getAbsensiHariIni' }) 
+      });
       const data = await res.json();
-      setAbsensiHariIni(data.success && Array.isArray(data.data) ? data.data : []);
-    } catch (error) { console.error(error); setAbsensiHariIni([]); }
-    finally { setLoadingAbsensi(false); }
+      const newData = data.success && Array.isArray(data.data) ? data.data : [];
+      setAbsensiHariIni(newData);
+      setLastRefresh(new Date());
+      console.log('Absensi hari ini:', newData.length, 'umat');
+    } catch (error) { 
+      console.error('Error muatAbsensiHariIni:', error); 
+      setAbsensiHariIni([]); 
+    } finally { 
+      setLoadingAbsensi(false); 
+    }
   };
 
   const kirimRingkasan = async () => {
@@ -82,11 +96,25 @@ export default function AdminPage() {
     finally { setLoadingRingkasan(false); }
   };
 
+  // Auto-refresh setiap 10 detik saat di tab Live
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'live' && autoRefresh) {
+      muatAbsensiHariIni(); // Load pertama kali
+      intervalRef.current = setInterval(() => {
+        muatAbsensiHariIni();
+      }, 10000); // Refresh setiap 10 detik
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isAuthenticated, activeTab, autoRefresh]);
+
+  // Load data saat tab berubah
   useEffect(() => {
     if (!isAuthenticated) return;
     if (activeTab === 'jadwal') muatKegiatan();
-    else if (activeTab === 'live') muatAbsensiHariIni();
     else if (activeTab === 'dashboard') muatStatistik();
+    // Tab 'live' sudah di-handle oleh auto-refresh
   }, [isAuthenticated, activeTab]);
 
   const handleAktifkan = async (e) => {
@@ -119,6 +147,11 @@ export default function AdminPage() {
   const absensiTersaring = Array.isArray(absensiHariIni) 
     ? absensiHariIni.filter(a => a.nama && a.nama.toLowerCase().includes(searchNama.toLowerCase()))
     : [];
+
+  const formatWaktu = (date) => {
+    if (!date) return '-';
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
 
   if (!isAuthenticated) {
     return (
@@ -162,9 +195,23 @@ export default function AdminPage() {
             <div style={styles.liveHeader}>
               <div>
                 <h2 style={styles.sectionTitle}>👥 Kehadiran Hari Ini</h2>
-                <p style={styles.liveCount}>Total: <strong>{absensiHariIni.length}</strong> umat hadir</p>
+                <p style={styles.liveCount}>
+                  Total: <strong>{absensiHariIni.length}</strong> umat hadir
+                  {lastRefresh && <span style={{fontSize: '12px', color: '#8A9A90', marginLeft: '12px'}}>
+                    (Update: {formatWaktu(lastRefresh)})
+                  </span>}
+                </p>
               </div>
-              <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+              <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#5B7060', cursor: 'pointer'}}>
+                  <input 
+                    type="checkbox" 
+                    checked={autoRefresh} 
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                    style={{accentColor: '#5B7060'}}
+                  />
+                  Auto-refresh
+                </label>
                 <button onClick={muatAbsensiHariIni} disabled={loadingAbsensi} style={styles.btnRefresh}>
                   {loadingAbsensi ? '⏳' : '🔄'} Refresh
                 </button>
@@ -173,11 +220,17 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+            
             <div style={styles.searchBox}>
               <input type="text" value={searchNama} onChange={(e) => setSearchNama(e.target.value)} placeholder="🔍 Ketik nama umat..." style={styles.input} />
             </div>
+            
             {absensiTersaring.length === 0 ? (
-              <div style={styles.emptyState}>{searchNama ? 'Tidak ada umat dengan nama tersebut.' : 'Belum ada umat yang absen hari ini.'}</div>
+              <div style={styles.emptyState}>
+                {searchNama ? 'Tidak ada umat dengan nama tersebut.' : 
+                 loadingAbsensi ? 'Memuat data...' :
+                 'Belum ada umat yang absen hari ini.'}
+              </div>
             ) : (
               <div style={styles.list}>
                 {absensiTersaring.map((a, idx) => (
