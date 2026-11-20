@@ -4,22 +4,42 @@ export async function POST(request) {
     const gasUrl = process.env.GAS_WEB_APP_URL;
 
     if (!gasUrl) {
-      return Response.json({ success: false, message: 'Konfigurasi server belum lengkap.' }, { status: 500 });
+      console.error('GAS_WEB_APP_URL not configured');
+      return Response.json({ 
+        success: false, 
+        message: 'Konfigurasi server belum lengkap.' 
+      }, { status: 500 });
     }
+
+    console.log('Proxy request:', body.action);
 
     // Mengirim data ke Google Apps Script
     const response = await fetch(gasUrl, {
       method: 'POST',
-      // Menggunakan text/plain untuk menghindari masalah CORS preflight di Google Apps Script
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      headers: { 
+        'Content-Type': 'text/plain;charset=utf-8' 
+      },
       body: JSON.stringify(body)
     });
 
+    if (!response.ok) {
+      console.error('GAS response not ok:', response.status);
+      return Response.json({ 
+        success: false, 
+        message: 'GAS returned status: ' + response.status 
+      }, { status: response.status });
+    }
+
     const result = await response.json();
+    console.log('GAS response:', JSON.stringify(result).substring(0, 200));
+    
     return Response.json(result);
 
   } catch (error) {
     console.error('Proxy Error:', error);
-    return Response.json({ success: false, message: 'Gagal terhubung ke server Vihara.' }, { status: 500 });
+    return Response.json({ 
+      success: false, 
+      message: 'Gagal terhubung ke server Vihara: ' + error.message 
+    }, { status: 500 });
   }
 }
