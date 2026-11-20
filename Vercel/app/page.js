@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export default function Home() {
   const [metode, setMetode] = useState('cari');
@@ -13,13 +14,32 @@ export default function Home() {
   const [qrInput, setQrInput] = useState('');
   const [loadingQr, setLoadingQr] = useState(false);
   
+  // === STATE KAMERA ===
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [scanCount, setScanCount] = useState(0);
+  const [lastScan, setLastScan] = useState(null);
+  const html5QrCodeRef = useRef(null);
+  const isScanningRef = useRef(false); // lock agar tidak double-submit
+  
   const namaInputRef = useRef(null);
   const qrInputRef = useRef(null);
 
   useEffect(() => { muatDataAwal(); }, []);
 
+  // Auto-focus input manual saat toggle scan
   useEffect(() => {
-    if (metode === 'scan' && qrInputRef.current) qrInputRef.current.focus();
+    if (metode === 'scan' && !cameraActive && qrInputRef.current) {
+      qrInputRef.current.focus();
+    }
+  }, [metode, cameraActive]);
+
+  // === STOP KAMERA SAAT TOGGLE BERUBAH ===
+  useEffect(() => {
+    if (metode !== 'scan') {
+      stopCamera();
+    }
+    return () => { stopCamera(); };
   }, [metode]);
 
   const muatDataAwal = async () => {
@@ -49,15 +69,14 @@ export default function Home() {
     : [];
 
   // === RESET OTOMATIS SETELAH SUKSES ===
-  const resetSetelahSukses = () => {
+  const resetSetelahSukses = (delay = 1500) => {
     setTimeout(() => {
       setNama('');
       setStatus('');
       setStatusType('');
       setLoadingId(null);
-      // Auto-focus ke input nama untuk pendaftar berikutnya
       if (namaInputRef.current) namaInputRef.current.focus();
-    }, 1500); // 1.5 detik — cukup untuk lihat konfirmasi
+    }, delay);
   };
 
   // === ABSEN 1-TAP DARI KARTU NAMA ===
@@ -111,53 +130,124 @@ export default function Home() {
     }
   };
 
-  // === ABSEN VIA QR ===
-  const handleQrSubmit = async (e) => {
-    e.preventDefault();
-    const idScan = qrInput.trim();
-    if (!idScan) {
-      setStatus('⚠️ Silakan scan QR Code atau masukkan ID Umat.');
-      setStatusType('error');
+  // === PROSES HASIL SCAN (DARI KAMERA ATAU INPUT MANUAL) ===
+  const processQrScan = async (idUmatScan, source = 'camera') => {
+    // Lock: cegah double-submit saat kamera masih aktif
+    if (isScanningRef.current) return;
+    isScanningRef.current = true;
+
+    if (!idUmatScan || !idUmatScan.trim()) {
+      isScanningRef.current = false;
       return;
     }
+
     if (!kegiatanHariIni || !kegiatanHariIni.valid) {
       setStatus('⚠️ Tidak ada kegiatan aktif hari ini.');
       setStatusType('error');
+      isScanningRef.current = false;
       return;
     }
 
     setLoadingQr(true);
-    setStatus('Memverifikasi ID... 🙏');
+    setStatus('Memverifikasi... 🙏');
     setStatusType('');
 
     try {
       const response = await fetch('/api/proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'prosesCheckinQR', data: { idUmatScan: idScan } })
+        body: JSON.stringify({
+          action: 'prosesCheckinQR',
+          data: { idUmatScan: idUmatScan.trim() }
+        })
       });
       const result = await response.json();
 
       if (result.success) {
+        setScanCount(prev => prev + 1);
+        setLastScan({ nama: result.nama, id: idUmatScan.trim(), time: new Date() });
         setStatus('✅ ' + result.message);
         setStatusType('success');
         setQrInput('');
-        if (qrInputRef.current) qrInputRef.current.focus();
-        // Auto-clear banner sukses untuk QR juga
-        setTimeout(() => {
-          setStatus('');
-          setStatusType('');
-        }, 2000);
+        
+        // Auto-reset untuk kamera: lanjut scan lagi
+        if (source === 'camera') {
+          setTimeout(() => {
+            setStatus('');
+            setStatusType('');
+            isScanningRef.current = false; // unlock kamera
+          }, 1500);
+        } else {
+          // Manual input: focus kembali ke input
+          setTimeout(() => {
+            setStatus('');
+            setStatusType('');
+            isScanningRef.current = false;
+            if (qrInputRef.current) qrInputRef.current.focus();
+          }, 1500);
+        }
       } else {
         setStatus('❌ ' + result.message);
         setStatusType('error');
+        setTimeout(() => {
+          isScanningRef.current = false; // unlock agar bisa scan lagi
+        }, 2000);
       }
     } catch (error) {
       setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.');
       setStatusType('error');
+      setTimeout(() => { isScanningRef.current = false; }, 2000);
     } finally {
       setLoadingQr(false);
     }
+  };
+
+  // === START KAMERA ===
+  const startCamera = async () => {
+    setCameraError('');
+    try {
+      const html5QrCode = new Html5Qrcode('qr-reader');
+      html5QrCodeRef.current = html5QrCode;
+
+      await html5QrCode.start(
+        { facingMode: 'environment' }, // kamera belakang HP
+        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        (decodedText) => {
+          // Ini dipanggil otomatis saat QR terdeteksi
+          processQrScan(decodedText, 'camera');
+        },
+        () => { /* abaikan error parsing normal */ }
+      );
+      setCameraActive(true);
+      setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.');
+      setStatusType('');
+    } catch (err) {
+      setCameraError('Tidak dapat mengakses kamera. Pastikan Anda memberikan izin kamera pada browser. (' + err + ')');
+      setCameraActive(false);
+    }
+  };
+
+  // === STOP KAMERA ===
+  const stopCamera = async () => {
+    if (html5QrCodeRef.current && cameraActive) {
+      try {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current.clear();
+      } catch (err) { /* ignore */ }
+      html5QrCodeRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  // === SUBMIT MANUAL (ENTER atau KLIK) ===
+  const handleQrManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!qrInput.trim()) {
+      setStatus('⚠️ Masukkan ID Umat terlebih dahulu.');
+      setStatusType('error');
+      return;
+    }
+    await processQrScan(qrInput, 'manual');
   };
 
   return (
@@ -205,6 +295,7 @@ export default function Home() {
             </button>
           </div>
 
+          {/* ====== MODE CARI NAMA ====== */}
           {metode === 'cari' && (
             <div style={styles.section}>
               <input
@@ -257,30 +348,89 @@ export default function Home() {
             </div>
           )}
 
+          {/* ====== MODE SCAN QR ====== */}
           {metode === 'scan' && (
             <div style={styles.section}>
-              <form onSubmit={handleQrSubmit}>
-                <input
-                  ref={qrInputRef}
-                  type="text"
-                  value={qrInput}
-                  onChange={(e) => { setQrInput(e.target.value); setStatus(''); setStatusType(''); }}
-                  placeholder="Arahkan scanner QR ke ID Umat..."
-                  style={styles.input}
-                  autoFocus
-                />
-                <p style={styles.hint}>Gunakan QR Scanner atau masukkan ID Umat secara manual</p>
-                <button
-                  type="submit"
-                  disabled={loadingQr || !qrInput.trim()}
-                  style={(loadingQr || !qrInput.trim()) ? styles.buttonDisabled : styles.button}
-                >
-                  {loadingQr ? 'Memverifikasi...' : '📷 Check-in via QR'}
-                </button>
-              </form>
+              {/* Counter sesi */}
+              {scanCount > 0 && (
+                <div style={styles.scanCounter}>
+                  📊 <strong>{scanCount}</strong> umat telah check-in via QR pada sesi ini
+                </div>
+              )}
+
+              {/* Kartu hasil scan terakhir */}
+              {lastScan && (
+                <div style={styles.lastScanCard}>
+                  <div style={styles.lastScanInfo}>
+                    <div style={styles.lastScanNama}>✅ {lastScan.nama}</div>
+                    <div style={styles.lastScanId}>ID: {lastScan.id} • {lastScan.time.toLocaleTimeString('id-ID')}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Area Kamera */}
+              {!cameraActive ? (
+                <div style={styles.cameraPlaceholder}>
+                  <div style={styles.cameraIcon}>📷</div>
+                  <p style={styles.cameraText}>
+                    Buka kamera HP untuk scan QR Code ID Umat.
+                    <br />
+                    <span style={{fontSize: '13px', color: '#8A9A90'}}>
+                      Data tersimpan otomatis saat QR terdeteksi.
+                    </span>
+                  </p>
+                  <button onClick={startCamera} style={styles.btnCamera}>
+                    🎥 Mulai Scan dengan Kamera
+                  </button>
+                </div>
+              ) : (
+                <div style={styles.cameraWrapper}>
+                  <div id="qr-reader" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden' }} />
+                  <div style={styles.cameraHint}>
+                    🙏 Arahkan QR Code ID Umat ke kamera
+                  </div>
+                  <button onClick={stopCamera} style={styles.btnStopCamera}>
+                    ⏹️ Hentikan Kamera
+                  </button>
+                </div>
+              )}
+
+              {cameraError && (
+                <div style={styles.errorBanner}>
+                  <p style={styles.status}>⚠️ {cameraError}</p>
+                </div>
+              )}
+
+              {/* Fallback: Input Manual (untuk scanner hardware atau ketik ID) */}
+              {!cameraActive && (
+                <div style={styles.manualSection}>
+                  <div style={styles.dividerText}>— atau masukkan ID manual —</div>
+                  <form onSubmit={handleQrManualSubmit}>
+                    <input
+                      ref={qrInputRef}
+                      type="text"
+                      value={qrInput}
+                      onChange={(e) => { setQrInput(e.target.value); setStatus(''); setStatusType(''); }}
+                      placeholder="Contoh: VKM-001"
+                      style={styles.input}
+                    />
+                    <p style={styles.hint}>
+                      Tekan Enter untuk submit otomatis (cocok untuk scanner USB)
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={loadingQr || !qrInput.trim()}
+                      style={(loadingQr || !qrInput.trim()) ? styles.buttonDisabled : styles.button}
+                    >
+                      {loadingQr ? 'Memverifikasi...' : '✨ Check-in via ID'}
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           )}
 
+          {/* Status Banner */}
           {status && (
             <div style={statusType === 'success' ? styles.successBanner : statusType === 'error' ? styles.errorBanner : styles.statusBox}>
               <p style={styles.status}>{status}</p>
@@ -342,5 +492,21 @@ const styles = {
   daftarLink: { display: 'block', width: '100%', padding: '18px', fontSize: '17px', fontWeight: '700', color: '#8B6914', backgroundColor: '#FDF8EE', border: '2px solid #D4AF37', borderRadius: '12px', textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' },
   footer: { textAlign: 'center', paddingTop: '20px', marginTop: '24px', borderTop: '1px solid #E8ECE9' },
   footerQuote: { color: '#8A9A90', fontSize: '14px', fontStyle: 'italic', margin: '0 0 4px 0' },
-  footerText: { color: '#8A9A90', fontSize: '13px', margin: 0 }
+  footerText: { color: '#8A9A90', fontSize: '13px', margin: 0 },
+  
+  // === STYLES BARU UNTUK KAMERA ===
+  scanCounter: { backgroundColor: '#E8F5E9', border: '1px solid #5B7060', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', color: '#5B7060', fontSize: '14px', fontWeight: '600', textAlign: 'center' },
+  lastScanCard: { backgroundColor: '#FDF8EE', border: '2px solid #D4AF37', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' },
+  lastScanInfo: { display: 'flex', flexDirection: 'column', gap: '2px' },
+  lastScanNama: { color: '#5B7060', fontSize: '16px', fontWeight: '700' },
+  lastScanId: { color: '#8A9A90', fontSize: '13px' },
+  cameraPlaceholder: { backgroundColor: '#F0F4F1', border: '2px dashed #5B7060', borderRadius: '12px', padding: '32px 20px', textAlign: 'center', marginBottom: '16px' },
+  cameraIcon: { fontSize: '48px', marginBottom: '12px' },
+  cameraText: { color: '#5B7060', fontSize: '15px', fontWeight: '600', marginBottom: '16px', lineHeight: '1.5' },
+  btnCamera: { width: '100%', padding: '18px', fontSize: '17px', fontWeight: '700', color: '#FFFFFF', backgroundColor: '#5B7060', border: 'none', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(91, 112, 96, 0.3)' },
+  cameraWrapper: { marginBottom: '16px' },
+  cameraHint: { textAlign: 'center', color: '#5B7060', fontSize: '14px', fontWeight: '600', marginTop: '12px', marginBottom: '12px', padding: '10px', backgroundColor: '#E8F5E9', borderRadius: '8px' },
+  btnStopCamera: { width: '100%', padding: '14px', fontSize: '15px', fontWeight: '600', color: '#C0392B', backgroundColor: '#FFFFFF', border: '2px solid #C0392B', borderRadius: '10px', cursor: 'pointer' },
+  manualSection: { marginTop: '20px' },
+  dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' }
 };
