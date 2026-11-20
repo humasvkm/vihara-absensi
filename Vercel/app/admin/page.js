@@ -5,9 +5,8 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
-  const [activeTab, setActiveTab] = useState('jadwal'); // 'jadwal' atau 'dashboard'
+  const [activeTab, setActiveTab] = useState('jadwal');
   
-  // Data Kegiatan
   const [kegiatanList, setKegiatanList] = useState([]);
   const [loadingKegiatan, setLoadingKegiatan] = useState(false);
   const [selectedKegiatan, setSelectedKegiatan] = useState('');
@@ -18,21 +17,22 @@ export default function AdminPage() {
   const [statusMsg, setStatusMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Data Dashboard
   const [statistik, setStatistik] = useState(null);
   const [loadingStatistik, setLoadingStatistik] = useState(false);
-  const [filter, setFilter] = useState({ periode: 'bulan', bulan: new Date().getMonth() + 1, tahun: new Date().getFullYear(), jenisKegiatan: 'all' });
+  const [filter, setFilter] = useState({ 
+    periode: 'bulan', 
+    bulan: new Date().getMonth() + 1, 
+    tahun: new Date().getFullYear(), 
+    jenisKegiatan: 'all' 
+  });
 
   const ADMIN_PIN = '123456';
+  const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (pin === ADMIN_PIN) {
-      setIsAuthenticated(true);
-      setPinError('');
-    } else {
-      setPinError('PIN salah. Silakan coba lagi.');
-    }
+    if (pin === ADMIN_PIN) { setIsAuthenticated(true); setPinError(''); }
+    else { setPinError('PIN salah. Silakan coba lagi.'); }
   };
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function AdminPage() {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAllKegiatan' }) });
       const data = await res.json();
       if (data.success) setKegiatanList(data.data || []);
-    } catch (error) { console.error('Gagal memuat kegiatan:', error); }
+    } catch (error) { console.error(error); }
     finally { setLoadingKegiatan(false); }
   };
 
@@ -57,8 +57,8 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getStatistikKehadiran', data: filter }) });
       const data = await res.json();
-      if (data.success) setStatistik(data);
-    } catch (error) { console.error('Gagal memuat statistik:', error); }
+      if (data.success) setStatistik(data.data);
+    } catch (error) { console.error(error); }
     finally { setLoadingStatistik(false); }
   };
 
@@ -66,7 +66,6 @@ export default function AdminPage() {
     e.preventDefault();
     if (!selectedKegiatan || !tanggal) { setStatusMsg('⚠️ Pilih kegiatan dan tanggal.'); return; }
     if (selectedKegiatan === 'CUSTOM' && !customNama.trim()) { setStatusMsg('⚠️ Isi nama kegiatan baru.'); return; }
-
     setLoading(true); setStatusMsg('Sedang memproses...');
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'aktifkanKegiatan', data: { idKegiatan: selectedKegiatan, customNama, tanggal, waktuMulai, waktuSelesai } }) });
@@ -105,7 +104,7 @@ export default function AdminPage() {
             <button type="submit" style={styles.button}>Masuk</button>
           </form>
           <p style={styles.hint}>PIN default: 123456</p>
-          <a href="/" style={styles.link}>← Kembali ke Absensi</a>
+          <a href="/" style={styles.link}>← Kembali ke Halaman Absensi</a>
         </div>
       </main>
     );
@@ -198,13 +197,27 @@ export default function AdminPage() {
           <div>
             <section style={styles.section}>
               <h2 style={styles.sectionTitle}>🔍 Filter Statistik</h2>
-              <div style={styles.formRow}>
+              <div style={styles.filterGrid}>
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Periode</label>
                   <select value={filter.periode} onChange={(e) => setFilter({...filter, periode: e.target.value})} style={styles.select}>
                     <option value="minggu">Minggu Ini</option>
                     <option value="bulan">Bulan Ini</option>
                     <option value="tahun">Tahun Ini</option>
+                  </select>
+                </div>
+                {filter.periode === 'bulan' && (
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Bulan</label>
+                    <select value={filter.bulan} onChange={(e) => setFilter({...filter, bulan: parseInt(e.target.value)})} style={styles.select}>
+                      {NAMA_BULAN.map((n, i) => <option key={i} value={i+1}>{n}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Tahun</label>
+                  <select value={filter.tahun} onChange={(e) => setFilter({...filter, tahun: parseInt(e.target.value)})} style={styles.select}>
+                    {[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
                 <div style={styles.formGroup}>
@@ -219,30 +232,73 @@ export default function AdminPage() {
               <button onClick={muatStatistik} style={styles.buttonSecondary}>🔄 Terapkan Filter</button>
             </section>
 
-            {loadingStatistik ? <p style={styles.loading}>Memuat statistik...</p> : statistik && (
+            {loadingStatistik ? <p style={styles.loading}>Memuat statistik...</p> : statistik ? (
               <div>
+                {/* 3 Kartu Utama */}
                 <div style={styles.statsGrid}>
-                  <div style={styles.statCard}><div style={styles.statValue}>{statistik.totalUmat}</div><div style={styles.statLabel}>Total Umat</div></div>
-                  <div style={styles.statCard}><div style={styles.statValue}>{statistik.totalHadir}</div><div style={styles.statLabel}>Total Kehadiran</div></div>
-                  <div style={styles.statCard}><div style={styles.statValue}>{statistik.rate}%</div><div style={styles.statLabel}>Tingkat Hadir</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}>
+                    <div style={styles.statValue}>{statistik.totalUmat}</div>
+                    <div style={styles.statLabel}>Total Umat</div>
+                  </div>
+                  <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #5B7060'}}>
+                    <div style={styles.statValue}>{statistik.totalHadir}</div>
+                    <div style={styles.statLabel}>Kehadiran</div>
+                  </div>
+                  <div style={{...styles.statCard, backgroundColor: '#E8EEF5', borderLeft: '4px solid #7B9EBD'}}>
+                    <div style={styles.statValue}>{statistik.rate}%</div>
+                    <div style={styles.statLabel}>Tingkat Hadir</div>
+                  </div>
                 </div>
 
-                <h2 style={styles.sectionTitle}>🏆 Ranking Umat Teraktif (Top 10)</h2>
-                {statistik.topUmat.length === 0 ? <p style={styles.empty}>Belum ada data kehadiran untuk periode ini.</p> : (
-                  <div style={styles.list}>
-                    {statistik.topUmat.map((u, idx) => (
-                      <div key={idx} style={styles.listItem}>
-                        <div style={styles.listItemInfo}>
-                          <strong style={styles.listItemTitle}>#{idx + 1} {u.nama}</strong>
-                          <span style={styles.listItemMeta}>ID: {u.id}</span>
+                {/* Kehadiran per Kegiatan */}
+                {statistik.perKegiatan && Object.keys(statistik.perKegiatan).length > 0 && (
+                  <section style={styles.section}>
+                    <h2 style={styles.sectionTitle}>📋 Kehadiran per Kegiatan</h2>
+                    <div style={styles.list}>
+                      {Object.entries(statistik.perKegiatan).map(([nama, count]) => (
+                        <div key={nama} style={styles.listItem}>
+                          <strong style={styles.listItemTitle}>{nama}</strong>
+                          <span style={styles.badge}>{count}</span>
                         </div>
-                        <span style={styles.badge}>{u.count}x Hadir</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </section>
                 )}
+
+                {/* Kehadiran per Tanggal */}
+                {statistik.perMinggu && Object.keys(statistik.perMinggu).length > 0 && (
+                  <section style={styles.section}>
+                    <h2 style={styles.sectionTitle}>📅 Kehadiran per Tanggal (Bulan {NAMA_BULAN[statistik.bulan-1]}/{statistik.tahun})</h2>
+                    <div style={styles.list}>
+                      {Object.entries(statistik.perMinggu).map(([tgl, count]) => (
+                        <div key={tgl} style={styles.listItem}>
+                          <strong style={styles.listItemTitle}>{tgl}</strong>
+                          <span style={styles.badge}>{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Ranking Umat Teraktif */}
+                <section style={styles.section}>
+                  <h2 style={styles.sectionTitle}>🏆 Ranking Umat Teraktif (Top 10)</h2>
+                  {statistik.topUmat && statistik.topUmat.length === 0 ? <p style={styles.empty}>Belum ada data kehadiran untuk periode ini.</p> : (
+                    <div style={styles.list}>
+                      {statistik.topUmat.map((u, idx) => (
+                        <div key={idx} style={styles.listItem}>
+                          <div style={styles.listItemInfo}>
+                            <strong style={styles.listItemTitle}>#{idx + 1} {u.nama}</strong>
+                            <span style={styles.listItemMeta}>ID: {u.id}</span>
+                          </div>
+                          <span style={styles.badge}>{u.count}x Hadir</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
               </div>
-            )}
+            ) : <p style={styles.empty}>Klik "Terapkan Filter" untuk memuat statistik.</p>}
           </div>
         )}
 
@@ -271,11 +327,12 @@ const styles = {
   listItemInfo: { display: 'flex', flexDirection: 'column', gap: '4px' },
   listItemTitle: { color: '#5B7060', fontSize: '16px' },
   listItemMeta: { color: '#8A9A90', fontSize: '13px' },
-  badge: { padding: '6px 12px', backgroundColor: '#5B7060', color: '#FFFFFF', borderRadius: '20px', fontSize: '14px', fontWeight: '600' },
+  badge: { padding: '6px 14px', backgroundColor: '#5B7060', color: '#FFFFFF', borderRadius: '20px', fontSize: '14px', fontWeight: '600' },
   btnNonaktif: { padding: '8px 16px', backgroundColor: '#FFFFFF', color: '#C0392B', border: '2px solid #C0392B', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' },
   form: { display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' },
   formGrid: { display: 'flex', flexDirection: 'column', gap: '16px' },
-  formRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' },
+  formRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' },
+  filterGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '16px' },
   formGroup: { display: 'flex', flexDirection: 'column', gap: '8px' },
   label: { color: '#5B7060', fontWeight: '600', fontSize: '14px' },
   input: { padding: '14px', fontSize: '16px', border: '2px solid #D1DBD4', borderRadius: '10px', outline: 'none', width: '100%', boxSizing: 'border-box' },
@@ -290,7 +347,7 @@ const styles = {
   loading: { color: '#8A9A90', fontStyle: 'italic', padding: '16px' },
   empty: { color: '#8A9A90', fontStyle: 'italic', padding: '16px', textAlign: 'center' },
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' },
-  statCard: { padding: '24px', backgroundColor: '#F0F4F1', borderRadius: '12px', textAlign: 'center', borderLeft: '4px solid #D4AF37' },
-  statValue: { fontSize: '36px', fontWeight: '700', color: '#5B7060', marginBottom: '8px' },
+  statCard: { padding: '24px', borderRadius: '12px', textAlign: 'center' },
+  statValue: { fontSize: '42px', fontWeight: '700', color: '#5B7060', marginBottom: '8px' },
   statLabel: { fontSize: '14px', color: '#8A9A90', fontWeight: '500' }
 };
