@@ -5,7 +5,7 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
-  const [activeTab, setActiveTab] = useState('jadwal');
+  const [activeTab, setActiveTab] = useState('live'); // Default ke Live Absensi
   
   const [kegiatanList, setKegiatanList] = useState([]);
   const [loadingKegiatan, setLoadingKegiatan] = useState(false);
@@ -19,12 +19,12 @@ export default function AdminPage() {
 
   const [statistik, setStatistik] = useState(null);
   const [loadingStatistik, setLoadingStatistik] = useState(false);
-  const [filter, setFilter] = useState({ 
-    periode: 'bulan', 
-    bulan: new Date().getMonth() + 1, 
-    tahun: new Date().getFullYear(), 
-    jenisKegiatan: 'all' 
-  });
+  const [filter, setFilter] = useState({ periode: 'bulan', bulan: new Date().getMonth() + 1, tahun: new Date().getFullYear(), jenisKegiatan: 'all' });
+
+  // === STATE BARU UNTUK LIVE ABSENSI ===
+  const [absensiHariIni, setAbsensiHariIni] = useState([]);
+  const [loadingAbsensi, setLoadingAbsensi] = useState(false);
+  const [searchNama, setSearchNama] = useState('');
 
   const ADMIN_PIN = '123456';
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -38,6 +38,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (isAuthenticated) {
       if (activeTab === 'jadwal') muatKegiatan();
+      if (activeTab === 'live') muatAbsensiHariIni();
       if (activeTab === 'dashboard') muatStatistik();
     }
   }, [isAuthenticated, activeTab]);
@@ -60,6 +61,17 @@ export default function AdminPage() {
       if (data.success) setStatistik(data.data);
     } catch (error) { console.error(error); }
     finally { setLoadingStatistik(false); }
+  };
+
+  // === FUNGSI LIVE ABSENSI ===
+  const muatAbsensiHariIni = async () => {
+    setLoadingAbsensi(true);
+    try {
+      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAbsensiHariIni' }) });
+      const data = await res.json();
+      if (data.success) setAbsensiHariIni(data.data || []);
+    } catch (error) { console.error(error); }
+    finally { setLoadingAbsensi(false); }
   };
 
   const handleAktifkan = async (e) => {
@@ -88,6 +100,11 @@ export default function AdminPage() {
       else { setStatusMsg('❌ ' + data.message); }
     } catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
   };
+
+  // Filter pencarian nama di Live Absensi
+  const absensiTersaring = absensiHariIni.filter(a => 
+    a.nama.toLowerCase().includes(searchNama.toLowerCase())
+  );
 
   // === HALAMAN LOGIN ===
   if (!isAuthenticated) {
@@ -123,11 +140,56 @@ export default function AdminPage() {
         </div>
 
         <div style={styles.tabs}>
+          <button onClick={() => setActiveTab('live')} style={activeTab === 'live' ? styles.tabActive : styles.tab}>👥 Live Absensi</button>
           <button onClick={() => setActiveTab('jadwal')} style={activeTab === 'jadwal' ? styles.tabActive : styles.tab}>📅 Jadwal Kegiatan</button>
-          <button onClick={() => setActiveTab('dashboard')} style={activeTab === 'dashboard' ? styles.tabActive : styles.tab}>📊 Dashboard & Ranking</button>
+          <button onClick={() => setActiveTab('dashboard')} style={activeTab === 'dashboard' ? styles.tabActive : styles.tab}>📊 Dashboard</button>
         </div>
 
-        {/* TAB: JADWAL */}
+        {/* ===== TAB: LIVE ABSENSI ===== */}
+        {activeTab === 'live' && (
+          <div>
+            <div style={styles.liveHeader}>
+              <div>
+                <h2 style={styles.sectionTitle}>👥 Kehadiran Hari Ini</h2>
+                <p style={styles.liveCount}>Total: <strong>{absensiHariIni.length}</strong> umat hadir</p>
+              </div>
+              <button onClick={muatAbsensiHariIni} disabled={loadingAbsensi} style={styles.btnRefresh}>
+                {loadingAbsensi ? '⏳ Memuat...' : '🔄 Refresh'}
+              </button>
+            </div>
+
+            {/* Pencarian Cepat */}
+            <div style={styles.searchBox}>
+              <input 
+                type="text" 
+                value={searchNama} 
+                onChange={(e) => setSearchNama(e.target.value)} 
+                placeholder="🔍 Ketik nama umat untuk mengecek kehadiran..." 
+                style={styles.input} 
+              />
+            </div>
+
+            {absensiTersaring.length === 0 ? (
+              <div style={styles.emptyState}>
+                {searchNama ? 'Tidak ada umat dengan nama tersebut.' : 'Belum ada umat yang absen hari ini.'}
+              </div>
+            ) : (
+              <div style={styles.list}>
+                {absensiTersaring.map((a, idx) => (
+                  <div key={idx} style={styles.liveCard}>
+                    <div style={styles.liveInfo}>
+                      <div style={styles.liveNama}>{a.nama}</div>
+                      <div style={styles.liveMeta}>{a.id} • {a.metode === 'QR_Scan' ? '📷 Scan QR' : '📝 Manual'}</div>
+                    </div>
+                    <div style={styles.liveTime}>{a.waktu}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== TAB: JADWAL ===== */}
         {activeTab === 'jadwal' && (
           <div>
             <section style={styles.section}>
@@ -192,7 +254,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB: DASHBOARD */}
+        {/* ===== TAB: DASHBOARD ===== */}
         {activeTab === 'dashboard' && (
           <div>
             <section style={styles.section}>
@@ -234,23 +296,18 @@ export default function AdminPage() {
 
             {loadingStatistik ? <p style={styles.loading}>Memuat statistik...</p> : statistik ? (
               <div>
-                {/* 3 Kartu Utama */}
                 <div style={styles.statsGrid}>
                   <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}>
-                    <div style={styles.statValue}>{statistik.totalUmat}</div>
-                    <div style={styles.statLabel}>Total Umat</div>
+                    <div style={styles.statValue}>{statistik.totalUmat}</div><div style={styles.statLabel}>Total Umat</div>
                   </div>
                   <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #5B7060'}}>
-                    <div style={styles.statValue}>{statistik.totalHadir}</div>
-                    <div style={styles.statLabel}>Kehadiran</div>
+                    <div style={styles.statValue}>{statistik.totalHadir}</div><div style={styles.statLabel}>Kehadiran</div>
                   </div>
                   <div style={{...styles.statCard, backgroundColor: '#E8EEF5', borderLeft: '4px solid #7B9EBD'}}>
-                    <div style={styles.statValue}>{statistik.rate}%</div>
-                    <div style={styles.statLabel}>Tingkat Hadir</div>
+                    <div style={styles.statValue}>{statistik.rate}%</div><div style={styles.statLabel}>Tingkat Hadir</div>
                   </div>
                 </div>
 
-                {/* Kehadiran per Kegiatan */}
                 {statistik.perKegiatan && Object.keys(statistik.perKegiatan).length > 0 && (
                   <section style={styles.section}>
                     <h2 style={styles.sectionTitle}>📋 Kehadiran per Kegiatan</h2>
@@ -265,25 +322,9 @@ export default function AdminPage() {
                   </section>
                 )}
 
-                {/* Kehadiran per Tanggal */}
-                {statistik.perMinggu && Object.keys(statistik.perMinggu).length > 0 && (
-                  <section style={styles.section}>
-                    <h2 style={styles.sectionTitle}>📅 Kehadiran per Tanggal (Bulan {NAMA_BULAN[statistik.bulan-1]}/{statistik.tahun})</h2>
-                    <div style={styles.list}>
-                      {Object.entries(statistik.perMinggu).map(([tgl, count]) => (
-                        <div key={tgl} style={styles.listItem}>
-                          <strong style={styles.listItemTitle}>{tgl}</strong>
-                          <span style={styles.badge}>{count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* Ranking Umat Teraktif */}
                 <section style={styles.section}>
                   <h2 style={styles.sectionTitle}>🏆 Ranking Umat Teraktif (Top 10)</h2>
-                  {statistik.topUmat && statistik.topUmat.length === 0 ? <p style={styles.empty}>Belum ada data kehadiran untuk periode ini.</p> : (
+                  {statistik.topUmat && statistik.topUmat.length === 0 ? <p style={styles.empty}>Belum ada data.</p> : (
                     <div style={styles.list}>
                       {statistik.topUmat.map((u, idx) => (
                         <div key={idx} style={styles.listItem}>
@@ -335,7 +376,7 @@ const styles = {
   filterGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '16px' },
   formGroup: { display: 'flex', flexDirection: 'column', gap: '8px' },
   label: { color: '#5B7060', fontWeight: '600', fontSize: '14px' },
-  input: { padding: '14px', fontSize: '16px', border: '2px solid #D1DBD4', borderRadius: '10px', outline: 'none', width: '100%', boxSizing: 'border-box' },
+  input: { padding: '14px', fontSize: '16px', border: '2px solid #D1DBD4', borderRadius: '10px', outline: 'none', backgroundColor: '#FFFFFF', width: '100%', boxSizing: 'border-box' },
   select: { padding: '14px', fontSize: '16px', border: '2px solid #D1DBD4', borderRadius: '10px', outline: 'none', backgroundColor: '#FFFFFF', width: '100%', boxSizing: 'border-box' },
   button: { width: '100%', padding: '16px', fontSize: '16px', fontWeight: '700', color: '#FFFFFF', backgroundColor: '#5B7060', border: 'none', borderRadius: '12px', cursor: 'pointer', marginTop: '8px' },
   buttonSecondary: { width: '100%', padding: '14px', fontSize: '16px', fontWeight: '700', color: '#5B7060', backgroundColor: '#F0F4F1', border: '2px solid #5B7060', borderRadius: '12px', cursor: 'pointer', marginTop: '8px' },
@@ -349,5 +390,17 @@ const styles = {
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' },
   statCard: { padding: '24px', borderRadius: '12px', textAlign: 'center' },
   statValue: { fontSize: '42px', fontWeight: '700', color: '#5B7060', marginBottom: '8px' },
-  statLabel: { fontSize: '14px', color: '#8A9A90', fontWeight: '500' }
+  statLabel: { fontSize: '14px', color: '#8A9A90', fontWeight: '500' },
+  
+  // === STYLES BARU UNTUK LIVE ABSENSI ===
+  liveHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
+  liveCount: { color: '#5B7060', fontSize: '16px', margin: '4px 0 0 0' },
+  btnRefresh: { padding: '10px 20px', backgroundColor: '#5B7060', color: '#FFFFFF', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' },
+  searchBox: { marginBottom: '20px' },
+  liveCard: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#FFFFFF', border: '1px solid #E8ECE9', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
+  liveInfo: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  liveNama: { color: '#3D4A42', fontSize: '16px', fontWeight: '700' },
+  liveMeta: { color: '#8A9A90', fontSize: '13px' },
+  liveTime: { color: '#5B7060', fontSize: '18px', fontWeight: '700', fontVariantNumeric: 'tabular-nums' },
+  emptyState: { textAlign: 'center', padding: '40px 20px', color: '#8A9A90', fontSize: '15px', fontStyle: 'italic', backgroundColor: '#F0F4F1', borderRadius: '12px' }
 };
