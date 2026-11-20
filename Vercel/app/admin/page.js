@@ -52,9 +52,14 @@ export default function AdminPage() {
         body: JSON.stringify({ action: 'getAllKegiatan' }) 
       });
       const data = await res.json();
-      if (data.success) setKegiatanList(data.data || []);
+      if (data.success && Array.isArray(data.data)) {
+        setKegiatanList(data.data);
+      } else {
+        setKegiatanList([]);
+      }
     } catch (error) { 
-      console.error('Error muatKegiatan:', error); 
+      console.error('Error muatKegiatan:', error);
+      setKegiatanList([]);
     } finally { 
       setLoadingKegiatan(false); 
     }
@@ -69,9 +74,11 @@ export default function AdminPage() {
         body: JSON.stringify({ action: 'getStatistikKehadiran', data: filter }) 
       });
       const data = await res.json();
-      if (data.success) setStatistik(data.data);
+      if (data.success) {
+        setStatistik(data.data);
+      }
     } catch (error) { 
-      console.error('Error muatStatistik:', error); 
+      console.error('Error muatStatistik:', error);
     } finally { 
       setLoadingStatistik(false); 
     }
@@ -86,25 +93,25 @@ export default function AdminPage() {
         body: JSON.stringify({ action: 'getAbsensiHariIni' }) 
       });
       const data = await res.json();
-      if (data.success) setAbsensiHariIni(data.data || []);
+      if (data.success && Array.isArray(data.data)) {
+        setAbsensiHariIni(data.data);
+      } else {
+        setAbsensiHariIni([]);
+      }
     } catch (error) { 
-      console.error('Error muatAbsensiHariIni:', error); 
+      console.error('Error muatAbsensiHariIni:', error);
+      setAbsensiHariIni([]);
     } finally { 
       setLoadingAbsensi(false); 
     }
   };
 
-  // Load data saat tab berubah
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    try {
-      if (activeTab === 'jadwal') muatKegiatan();
-      else if (activeTab === 'live') muatAbsensiHariIni();
-      else if (activeTab === 'dashboard') muatStatistik();
-    } catch (error) {
-      console.error('Error di useEffect:', error);
-    }
+    if (activeTab === 'jadwal') muatKegiatan();
+    else if (activeTab === 'live') muatAbsensiHariIni();
+    else if (activeTab === 'dashboard') muatStatistik();
   }, [isAuthenticated, activeTab]);
 
   const handleAktifkan = async (e) => {
@@ -177,9 +184,12 @@ export default function AdminPage() {
     }
   };
 
-  const absensiTersaring = absensiHariIni.filter(a => 
-    a.nama.toLowerCase().includes(searchNama.toLowerCase())
-  );
+  // === PERBAIKAN: Pengecekan eksplisit sebelum .filter() ===
+  const absensiTersaring = Array.isArray(absensiHariIni) 
+    ? absensiHariIni.filter(a => 
+        a.nama && a.nama.toLowerCase().includes(searchNama.toLowerCase())
+      )
+    : [];
 
   // === HALAMAN LOGIN ===
   if (!isAuthenticated) {
