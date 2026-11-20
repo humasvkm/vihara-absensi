@@ -43,36 +43,26 @@ export default function AdminPage() {
     else { setPinError('PIN salah.'); }
   };
 
-  // === FUNGSI HELPER: Parse response dari proxy (handle double nesting) ===
+  // === FUNGSI HELPER: Parse response dari proxy ===
   const parseResponse = (data) => {
-    // Struktur 1: { success: true, data: [...] } (langsung dari GAS)
-    if (data && data.success && Array.isArray(data.data)) {
-      return data.data;
-    }
-    // Struktur 2: { data: { success: true, data: [...] } } (double wrap dari proxy)
-    if (data && data.data && data.data.success && Array.isArray(data.data.data)) {
-      return data.data.data;
-    }
-    // Struktur 3: { data: [...] } (hanya array)
-    if (data && data.data && Array.isArray(data.data)) {
-      return data.data;
-    }
-    // Struktur 4: langsung array
-    if (Array.isArray(data)) {
-      return data;
-    }
-    return [];
+    if (!data) return null;
+    if (data.success !== undefined && data.data !== undefined) return data.data;
+    if (data.data && data.data.success !== undefined && data.data.data !== undefined) return data.data.data;
+    if (data.data !== undefined) return data.data;
+    return data;
   };
 
   const parseSuccess = (data) => {
-    if (data && data.success) return true;
-    if (data && data.data && data.data.success) return true;
+    if (!data) return false;
+    if (data.success === true) return true;
+    if (data.data && data.data.success === true) return true;
     return false;
   };
 
   const parseMessage = (data) => {
-    if (data && data.message) return data.message;
-    if (data && data.data && data.data.message) return data.data.message;
+    if (!data) return '';
+    if (data.message) return data.message;
+    if (data.data && data.data.message) return data.data.message;
     return '';
   };
 
@@ -81,7 +71,8 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAllKegiatan' }) });
       const data = await res.json();
-      setKegiatanList(parseResponse(data));
+      const parsed = parseResponse(data);
+      setKegiatanList(Array.isArray(parsed) ? parsed : []);
     } catch (error) { console.error(error); setKegiatanList([]); }
     finally { setLoadingKegiatan(false); }
   };
@@ -91,11 +82,18 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getStatistikKehadiran', data: filter }) });
       const data = await res.json();
+      console.log('Statistik raw:', data);
       if (parseSuccess(data)) {
         const parsed = parseResponse(data);
-        setStatistik(Array.isArray(parsed) ? parsed[0] : parsed);
+        console.log('Statistik parsed:', parsed);
+        setStatistik(parsed);
+      } else {
+        setStatistik(null);
       }
-    } catch (error) { console.error(error); }
+    } catch (error) { 
+      console.error('Error muatStatistik:', error); 
+      setStatistik(null); 
+    }
     finally { setLoadingStatistik(false); }
   };
 
@@ -108,10 +106,8 @@ export default function AdminPage() {
         body: JSON.stringify({ action: 'getAbsensiHariIni' }) 
       });
       const data = await res.json();
-      console.log('Raw response:', data);
       const newData = parseResponse(data);
-      console.log('Parsed absensi:', newData.length, 'umat');
-      setAbsensiHariIni(newData);
+      setAbsensiHariIni(Array.isArray(newData) ? newData : []);
       setLastRefresh(new Date());
     } catch (error) { 
       console.error('Error muatAbsensiHariIni:', error); 
@@ -347,27 +343,47 @@ export default function AdminPage() {
               </div>
               <button onClick={muatStatistik} style={styles.buttonSecondary}>🔄 Terapkan Filter</button>
             </section>
-            {loadingStatistik ? <p style={styles.loading}>Memuat...</p> : statistik ? (
+            {loadingStatistik ? <p style={styles.loading}>Memuat statistik...</p> : statistik ? (
               <div>
+                {/* 3 Kartu Utama */}
                 <div style={styles.statsGrid}>
                   <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}><div style={styles.statValue}>{statistik.totalUmat || 0}</div><div style={styles.statLabel}>Total Umat</div></div>
                   <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #5B7060'}}><div style={styles.statValue}>{statistik.totalHadir || 0}</div><div style={styles.statLabel}>Kehadiran</div></div>
                   <div style={{...styles.statCard, backgroundColor: '#E8EEF5', borderLeft: '4px solid #7B9EBD'}}><div style={styles.statValue}>{statistik.rate || 0}%</div><div style={styles.statLabel}>Tingkat Hadir</div></div>
                 </div>
+                
+                {/* Kehadiran per Kegiatan */}
                 {statistik.perKegiatan && Object.keys(statistik.perKegiatan).length > 0 && (
                   <section style={styles.section}>
                     <h2 style={styles.sectionTitle}>📋 Kehadiran per Kegiatan</h2>
                     <div style={styles.list}>{Object.entries(statistik.perKegiatan).map(([nama, count]) => (<div key={nama} style={styles.listItem}><strong style={styles.listItemTitle}>{nama}</strong><span style={styles.badge}>{count}</span></div>))}</div>
                   </section>
                 )}
+                
+                {/* Kehadiran per Tanggal (Detail Periode) - YANG SEBELUMNYA HILANG */}
+                {statistik.perMinggu && Object.keys(statistik.perMinggu).length > 0 && (
+                  <section style={styles.section}>
+                    <h2 style={styles.sectionTitle}>📅 Kehadiran per Tanggal {filter.periode === 'bulan' ? `(Bulan ${NAMA_BULAN[filter.bulan-1]}/${filter.tahun})` : ''}</h2>
+                    <div style={styles.list}>
+                      {Object.entries(statistik.perMinggu).map(([tgl, count]) => (
+                        <div key={tgl} style={styles.listItem}>
+                          <strong style={styles.listItemTitle}>{tgl}</strong>
+                          <span style={styles.badge}>{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                
+                {/* Ranking Umat Teraktif */}
                 <section style={styles.section}>
-                  <h2 style={styles.sectionTitle}>🏆 Ranking Umat Teraktif</h2>
+                  <h2 style={styles.sectionTitle}>🏆 Ranking Umat Teraktif (Top 10)</h2>
                   {statistik.topUmat && statistik.topUmat.length === 0 ? <p style={styles.empty}>Belum ada data.</p> : (
                     <div style={styles.list}>{statistik.topUmat.map((u, idx) => (<div key={idx} style={styles.listItem}><div style={styles.listItemInfo}><strong style={styles.listItemTitle}>#{idx + 1} {u.nama}</strong><span style={styles.listItemMeta}>ID: {u.id}</span></div><span style={styles.badge}>{u.count}x Hadir</span></div>))}</div>
                   )}
                 </section>
               </div>
-            ) : <p style={styles.empty}>Klik "Terapkan Filter".</p>}
+            ) : <p style={styles.empty}>Klik "Terapkan Filter" untuk memuat statistik.</p>}
           </div>
         )}
 
