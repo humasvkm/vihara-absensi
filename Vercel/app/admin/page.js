@@ -84,25 +84,28 @@ export default function AdminPage() {
     }
   };
 
-  const muatAbsensiHariIni = async () => {
-    setLoadingAbsensi(true);
+    const kirimRingkasan = async () => {
+    if (!confirm('Kirim ringkasan kegiatan hari ini ke Telegram?\n\n• Grup Panitia\n• Admin Personal')) return;
+    
+    setLoadingRingkasan(true);
+    setStatusMsg('Mengirim ringkasan ke Telegram...');
+    
     try {
       const res = await fetch('/api/proxy', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ action: 'getAbsensiHariIni' }) 
+        body: JSON.stringify({ action: 'kirimRingkasanTelegram' }) 
       });
       const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setAbsensiHariIni(data.data);
+      if (data.success) {
+        setStatusMsg('✅ ' + data.message);
       } else {
-        setAbsensiHariIni([]);
+        setStatusMsg('❌ ' + data.message);
       }
-    } catch (error) { 
-      console.error('Error muatAbsensiHariIni:', error);
-      setAbsensiHariIni([]);
-    } finally { 
-      setLoadingAbsensi(false); 
+    } catch (error) {
+      setStatusMsg('❌ Gagal terhubung ke server.');
+    } finally {
+      setLoadingRingkasan(false);
     }
   };
 
@@ -183,7 +186,7 @@ export default function AdminPage() {
       setStatusMsg('❌ Gagal terhubung.'); 
     }
   };
-
+  const [loadingRingkasan, setLoadingRingkasan] = useState(false);
   // === PERBAIKAN: Pengecekan eksplisit sebelum .filter() ===
   const absensiTersaring = Array.isArray(absensiHariIni) 
     ? absensiHariIni.filter(a => 
@@ -272,6 +275,12 @@ export default function AdminPage() {
               >
                 {loadingAbsensi ? '⏳ Memuat...' : '🔄 Refresh'}
               </button>
+                                <button 
+                  onClick={kirimRingkasan} 
+                  disabled={loadingRingkasan} 
+                  style={styles.btnTelegram}
+                >
+                  {loadingRingkasan ? '⏳ Mengirim...' : '📤 Kirim Ringkasan'}
             </div>
 
             <div style={styles.searchBox}>
@@ -807,4 +816,14 @@ const styles = {
     backgroundColor: '#F0F4F1', 
     borderRadius: '12px' 
   }
+    btnTelegram: { 
+    padding: '10px 20px', 
+    backgroundColor: '#0088cc', 
+    color: '#FFFFFF', 
+    border: 'none', 
+    borderRadius: '10px', 
+    cursor: 'pointer', 
+    fontSize: '14px', 
+    fontWeight: '600' 
+  },
 };
