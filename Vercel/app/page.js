@@ -303,9 +303,9 @@ export default function Home() {
               </>
             ) : (
               <>
-                <div style={styles.infoNama}>🧘‍♂️ Tidak Ada Kegiatan Rutin</div>
+                <div style={styles.infoNama}>Tidak Ada Kegiatan Rutin</div>
                 <div style={styles.infoDetail}>Nikmati hari Anda dengan tenang.</div>
-                <div style={styles.infoJadwal}>🗓️ Jadwal Rutin: Minggu (09:00 - Puja Bakti) & Rabu (18:00 - Meditasi)</div>
+                <div style={styles.infoJadwal}>Jadwal Rutin: Minggu (09:00 - Puja Bakti) & Rabu (18:00 - Meditasi)</div>
               </>
             )}
           </div>
