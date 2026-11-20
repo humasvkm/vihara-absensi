@@ -296,18 +296,26 @@ export default function Home() {
         <div style={styles.body}>
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>📅 KEGIATAN HARI INI</div>
-            {kegiatanHariIni && kegiatanHariIni.valid ? (
-              <>
-                <div style={styles.infoNama}>{kegiatanHariIni.nama}</div>
-                <div style={styles.infoDetail}>{kegiatanHariIni.tanggal} | {kegiatanHariIni.waktu}</div>
-              </>
-            ) : (
-              <>
-                <div style={styles.infoNama}>Tidak Ada Kegiatan Rutin</div>
-                <div style={styles.infoDetail}>Nikmati hari Anda dengan tenang.</div>
-                <div style={styles.infoJadwal}>Jadwal Rutin: Minggu (09:00 - Puja Bakti) & Rabu (18:00 - Meditasi)</div>
-              </>
-            )}
+{kegiatanHariIni && kegiatanHariIni.valid ? (
+  <>
+    <div style={styles.infoNama}>{kegiatanHariIni.nama}</div>
+    <div style={styles.infoDetail}>{kegiatanHariIni.tanggal} | {kegiatanHariIni.waktu}</div>
+  </>
+) : (
+  <>
+    <div style={styles.infoNama}>
+      {kegiatanHariIni && kegiatanHariIni.message ? '🕐 Informasi Kegiatan' : '🧘‍♂️ Tidak Ada Kegiatan'}
+    </div>
+    <div style={styles.infoDetail}>
+      {kegiatanHariIni && kegiatanHariIni.message 
+        ? kegiatanHariIni.message 
+        : 'Nikmati hari Anda dengan tenang.'}
+    </div>
+    <div style={styles.infoJadwal}>
+      🗓️ Jadwal Rutin: Minggu (08:00-11:00 Puja Bakti) & Rabu (17:00-19:00 Meditasi)
+    </div>
+  </>
+)}
           </div>
 
           <div style={styles.toggleContainer}>
