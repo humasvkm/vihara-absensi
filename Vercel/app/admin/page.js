@@ -43,12 +43,26 @@ export default function AdminPage() {
     else { setPinError('PIN salah.'); }
   };
 
-  // === FUNGSI HELPER: Parse response dari proxy ===
+  // === FUNGSI HELPER: Parse response dari proxy (FIXED) ===
   const parseResponse = (data) => {
     if (!data) return null;
-    if (data.success !== undefined && data.data !== undefined) return data.data;
-    if (data.data && data.data.success !== undefined && data.data.data !== undefined) return data.data.data;
-    if (data.data !== undefined) return data.data;
+    
+    // Cek double-nesting DULU: {data: {success: true, data: [...]}}
+    if (data.data && data.data.success !== undefined && data.data.data !== undefined) {
+      return data.data.data;
+    }
+    
+    // Cek single-nesting: {success: true, data: [...]}
+    if (data.success !== undefined && data.data !== undefined) {
+      return data.data;
+    }
+    
+    // Cek hanya data: {data: [...]}
+    if (data.data !== undefined) {
+      return data.data;
+    }
+    
+    // Langsung data
     return data;
   };
 
@@ -108,16 +122,11 @@ export default function AdminPage() {
       const data = await res.json();
       console.log('=== DEBUG ABSENSI ===');
       console.log('1. Raw response:', data);
-      console.log('2. Type of data:', typeof data);
-      console.log('3. data.success:', data?.success);
-      console.log('4. data.data:', data?.data);
-      console.log('5. data.data?.success:', data?.data?.success);
-      console.log('6. data.data?.data:', data?.data?.data);
       
       const newData = parseResponse(data);
-      console.log('7. After parseResponse:', newData);
-      console.log('8. Is array?', Array.isArray(newData));
-      console.log('9. Length:', Array.isArray(newData) ? newData.length : 'N/A');
+      console.log('2. After parseResponse:', newData);
+      console.log('3. Is array?', Array.isArray(newData));
+      console.log('4. Length:', Array.isArray(newData) ? newData.length : 'N/A');
       
       setAbsensiHariIni(Array.isArray(newData) ? newData : []);
       setLastRefresh(new Date());
@@ -357,22 +366,17 @@ export default function AdminPage() {
             </section>
             {loadingStatistik ? <p style={styles.loading}>Memuat statistik...</p> : statistik ? (
               <div>
-                {/* 3 Kartu Utama */}
                 <div style={styles.statsGrid}>
                   <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}><div style={styles.statValue}>{statistik.totalUmat || 0}</div><div style={styles.statLabel}>Total Umat</div></div>
                   <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #5B7060'}}><div style={styles.statValue}>{statistik.totalHadir || 0}</div><div style={styles.statLabel}>Kehadiran</div></div>
                   <div style={{...styles.statCard, backgroundColor: '#E8EEF5', borderLeft: '4px solid #7B9EBD'}}><div style={styles.statValue}>{statistik.rate || 0}%</div><div style={styles.statLabel}>Tingkat Hadir</div></div>
                 </div>
-                
-                {/* Kehadiran per Kegiatan */}
                 {statistik.perKegiatan && Object.keys(statistik.perKegiatan).length > 0 && (
                   <section style={styles.section}>
                     <h2 style={styles.sectionTitle}>📋 Kehadiran per Kegiatan</h2>
                     <div style={styles.list}>{Object.entries(statistik.perKegiatan).map(([nama, count]) => (<div key={nama} style={styles.listItem}><strong style={styles.listItemTitle}>{nama}</strong><span style={styles.badge}>{count}</span></div>))}</div>
                   </section>
                 )}
-                
-                {/* Kehadiran per Tanggal (Detail Periode) - YANG SEBELUMNYA HILANG */}
                 {statistik.perMinggu && Object.keys(statistik.perMinggu).length > 0 && (
                   <section style={styles.section}>
                     <h2 style={styles.sectionTitle}>📅 Kehadiran per Tanggal {filter.periode === 'bulan' ? `(Bulan ${NAMA_BULAN[filter.bulan-1]}/${filter.tahun})` : ''}</h2>
@@ -386,8 +390,6 @@ export default function AdminPage() {
                     </div>
                   </section>
                 )}
-                
-                {/* Ranking Umat Teraktif */}
                 <section style={styles.section}>
                   <h2 style={styles.sectionTitle}>🏆 Ranking Umat Teraktif (Top 10)</h2>
                   {statistik.topUmat && statistik.topUmat.length === 0 ? <p style={styles.empty}>Belum ada data.</p> : (
