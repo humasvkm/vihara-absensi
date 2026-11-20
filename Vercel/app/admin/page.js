@@ -43,12 +43,45 @@ export default function AdminPage() {
     else { setPinError('PIN salah.'); }
   };
 
+  // === FUNGSI HELPER: Parse response dari proxy (handle double nesting) ===
+  const parseResponse = (data) => {
+    // Struktur 1: { success: true, data: [...] } (langsung dari GAS)
+    if (data && data.success && Array.isArray(data.data)) {
+      return data.data;
+    }
+    // Struktur 2: { data: { success: true, data: [...] } } (double wrap dari proxy)
+    if (data && data.data && data.data.success && Array.isArray(data.data.data)) {
+      return data.data.data;
+    }
+    // Struktur 3: { data: [...] } (hanya array)
+    if (data && data.data && Array.isArray(data.data)) {
+      return data.data;
+    }
+    // Struktur 4: langsung array
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return [];
+  };
+
+  const parseSuccess = (data) => {
+    if (data && data.success) return true;
+    if (data && data.data && data.data.success) return true;
+    return false;
+  };
+
+  const parseMessage = (data) => {
+    if (data && data.message) return data.message;
+    if (data && data.data && data.data.message) return data.data.message;
+    return '';
+  };
+
   const muatKegiatan = async () => {
     setLoadingKegiatan(true);
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAllKegiatan' }) });
       const data = await res.json();
-      setKegiatanList(data.success && Array.isArray(data.data) ? data.data : []);
+      setKegiatanList(parseResponse(data));
     } catch (error) { console.error(error); setKegiatanList([]); }
     finally { setLoadingKegiatan(false); }
   };
@@ -58,7 +91,10 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getStatistikKehadiran', data: filter }) });
       const data = await res.json();
-      if (data.success) setStatistik(data.data);
+      if (parseSuccess(data)) {
+        const parsed = parseResponse(data);
+        setStatistik(Array.isArray(parsed) ? parsed[0] : parsed);
+      }
     } catch (error) { console.error(error); }
     finally { setLoadingStatistik(false); }
   };
@@ -72,10 +108,11 @@ export default function AdminPage() {
         body: JSON.stringify({ action: 'getAbsensiHariIni' }) 
       });
       const data = await res.json();
-      const newData = data.success && Array.isArray(data.data) ? data.data : [];
+      console.log('Raw response:', data);
+      const newData = parseResponse(data);
+      console.log('Parsed absensi:', newData.length, 'umat');
       setAbsensiHariIni(newData);
       setLastRefresh(new Date());
-      console.log('Absensi hari ini:', newData.length, 'umat');
     } catch (error) { 
       console.error('Error muatAbsensiHariIni:', error); 
       setAbsensiHariIni([]); 
@@ -91,30 +128,27 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'kirimRingkasanTelegram' }) });
       const data = await res.json();
-      setStatusMsg(data.success ? '✅ ' + data.message : '❌ ' + data.message);
+      setStatusMsg(parseSuccess(data) ? '✅ ' + parseMessage(data) : '❌ ' + parseMessage(data));
     } catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
     finally { setLoadingRingkasan(false); }
   };
 
-  // Auto-refresh setiap 10 detik saat di tab Live
   useEffect(() => {
     if (isAuthenticated && activeTab === 'live' && autoRefresh) {
-      muatAbsensiHariIni(); // Load pertama kali
+      muatAbsensiHariIni();
       intervalRef.current = setInterval(() => {
         muatAbsensiHariIni();
-      }, 10000); // Refresh setiap 10 detik
+      }, 10000);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isAuthenticated, activeTab, autoRefresh]);
 
-  // Load data saat tab berubah
   useEffect(() => {
     if (!isAuthenticated) return;
     if (activeTab === 'jadwal') muatKegiatan();
     else if (activeTab === 'dashboard') muatStatistik();
-    // Tab 'live' sudah di-handle oleh auto-refresh
   }, [isAuthenticated, activeTab]);
 
   const handleAktifkan = async (e) => {
@@ -125,11 +159,11 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'aktifkanKegiatan', data: { idKegiatan: selectedKegiatan, customNama, tanggal, waktuMulai, waktuSelesai } }) });
       const data = await res.json();
-      if (data.success) {
-        setStatusMsg('✅ ' + data.message);
+      if (parseSuccess(data)) {
+        setStatusMsg('✅ ' + parseMessage(data));
         setSelectedKegiatan(''); setCustomNama(''); setWaktuMulai(''); setWaktuSelesai('');
         muatKegiatan();
-      } else { setStatusMsg('❌ ' + data.message); }
+      } else { setStatusMsg('❌ ' + parseMessage(data)); }
     } catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
     finally { setLoading(false); }
   };
@@ -139,8 +173,8 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'nonaktifkanKegiatan', data: { idKegiatan, tanggal: tanggalKegiatan } }) });
       const data = await res.json();
-      if (data.success) { setStatusMsg('✅ Kegiatan dinonaktifkan.'); muatKegiatan(); }
-      else { setStatusMsg('❌ ' + data.message); }
+      if (parseSuccess(data)) { setStatusMsg('✅ Kegiatan dinonaktifkan.'); muatKegiatan(); }
+      else { setStatusMsg('❌ ' + parseMessage(data)); }
     } catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
   };
 
@@ -316,9 +350,9 @@ export default function AdminPage() {
             {loadingStatistik ? <p style={styles.loading}>Memuat...</p> : statistik ? (
               <div>
                 <div style={styles.statsGrid}>
-                  <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}><div style={styles.statValue}>{statistik.totalUmat}</div><div style={styles.statLabel}>Total Umat</div></div>
-                  <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #5B7060'}}><div style={styles.statValue}>{statistik.totalHadir}</div><div style={styles.statLabel}>Kehadiran</div></div>
-                  <div style={{...styles.statCard, backgroundColor: '#E8EEF5', borderLeft: '4px solid #7B9EBD'}}><div style={styles.statValue}>{statistik.rate}%</div><div style={styles.statLabel}>Tingkat Hadir</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}><div style={styles.statValue}>{statistik.totalUmat || 0}</div><div style={styles.statLabel}>Total Umat</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #5B7060'}}><div style={styles.statValue}>{statistik.totalHadir || 0}</div><div style={styles.statLabel}>Kehadiran</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#E8EEF5', borderLeft: '4px solid #7B9EBD'}}><div style={styles.statValue}>{statistik.rate || 0}%</div><div style={styles.statLabel}>Tingkat Hadir</div></div>
                 </div>
                 {statistik.perKegiatan && Object.keys(statistik.perKegiatan).length > 0 && (
                   <section style={styles.section}>
