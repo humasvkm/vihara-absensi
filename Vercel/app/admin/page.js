@@ -30,7 +30,7 @@ export default function AdminPage() {
   const [loadingAbsensi, setLoadingAbsensi] = useState(false);
   const [searchNama, setSearchNama] = useState('');
 
-  const ADMIN_PIN = '123456';
+  const ADMIN_PIN = '4444';
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
   const handleLogin = (e) => {
@@ -217,7 +217,7 @@ export default function AdminPage() {
             {pinError && <p style={styles.error}>{pinError}</p>}
             <button type="submit" style={styles.button}>Masuk</button>
           </form>
-          <p style={styles.hint}>PIN default: 123456</p>
+          <p style={styles.hint}></p>
           <a href="/" style={styles.link}>← Kembali ke Halaman Absensi</a>
         </div>
       </main>
