@@ -209,8 +209,8 @@ export default function AdminPage() {
               type="password" 
               value={pin} 
               onChange={(e) => setPin(e.target.value)} 
-              placeholder="6 digit PIN" 
-              maxLength="6" 
+              placeholder="4 digit PIN" 
+              maxLength="4" 
               style={styles.input} 
               autoFocus 
             />
