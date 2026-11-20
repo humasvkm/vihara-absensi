@@ -7,11 +7,13 @@ export default function Home() {
   const [daftarUmat, setDaftarUmat] = useState([]);
   const [kegiatanHariIni, setKegiatanHariIni] = useState(null);
   const [status, setStatus] = useState('');
-  const [statusType, setStatusType] = useState(''); // 'success' | 'error' | ''
+  const [statusType, setStatusType] = useState('');
   const [loadingId, setLoadingId] = useState(null);
   const [hadirSet, setHadirSet] = useState(new Set());
   const [qrInput, setQrInput] = useState('');
   const [loadingQr, setLoadingQr] = useState(false);
+  
+  const namaInputRef = useRef(null);
   const qrInputRef = useRef(null);
 
   useEffect(() => { muatDataAwal(); }, []);
@@ -46,6 +48,18 @@ export default function Home() {
     ? daftarUmat.filter(u => u.nama.toLowerCase().includes(nama.toLowerCase())).slice(0, 10)
     : [];
 
+  // === RESET OTOMATIS SETELAH SUKSES ===
+  const resetSetelahSukses = () => {
+    setTimeout(() => {
+      setNama('');
+      setStatus('');
+      setStatusType('');
+      setLoadingId(null);
+      // Auto-focus ke input nama untuk pendaftar berikutnya
+      if (namaInputRef.current) namaInputRef.current.focus();
+    }, 1500); // 1.5 detik — cukup untuk lihat konfirmasi
+  };
+
   // === ABSEN 1-TAP DARI KARTU NAMA ===
   const handleHadir = async (umat) => {
     if (!kegiatanHariIni || !kegiatanHariIni.valid) {
@@ -53,7 +67,7 @@ export default function Home() {
       setStatusType('error');
       return;
     }
-    if (hadirSet.has(umat.id)) return; // cegah double klik
+    if (hadirSet.has(umat.id)) return;
 
     setLoadingId(umat.id);
     setStatus('');
@@ -81,18 +95,18 @@ export default function Home() {
         setHadirSet(prev => new Set(prev).add(umat.id));
         setStatus('✅ ' + result.message);
         setStatusType('success');
+        resetSetelahSukses();
       } else {
-        // Jika ternyata sudah absen (dari sesi/hari sebelumnya), kunci juga kartunya
         if (result.message && result.message.toLowerCase().includes('sudah')) {
           setHadirSet(prev => new Set(prev).add(umat.id));
         }
         setStatus('❌ ' + result.message);
         setStatusType('error');
+        setLoadingId(null);
       }
     } catch (error) {
       setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.');
       setStatusType('error');
-    } finally {
       setLoadingId(null);
     }
   };
@@ -129,6 +143,11 @@ export default function Home() {
         setStatusType('success');
         setQrInput('');
         if (qrInputRef.current) qrInputRef.current.focus();
+        // Auto-clear banner sukses untuk QR juga
+        setTimeout(() => {
+          setStatus('');
+          setStatusType('');
+        }, 2000);
       } else {
         setStatus('❌ ' + result.message);
         setStatusType('error');
@@ -144,7 +163,6 @@ export default function Home() {
   return (
     <main style={styles.container}>
       <div style={styles.card}>
-        {/* Header Hijau Sage */}
         <div style={styles.header}>
           <img
             src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0"
@@ -156,7 +174,6 @@ export default function Home() {
         </div>
 
         <div style={styles.body}>
-          {/* Info Kegiatan Hari Ini */}
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>📅 KEGIATAN HARI INI</div>
             {kegiatanHariIni && kegiatanHariIni.valid ? (
@@ -173,7 +190,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Toggle Metode */}
           <div style={styles.toggleContainer}>
             <button
               onClick={() => { setMetode('cari'); setStatus(''); setStatusType(''); }}
@@ -189,10 +205,10 @@ export default function Home() {
             </button>
           </div>
 
-          {/* KONTEN: CARI NAMA */}
           {metode === 'cari' && (
             <div style={styles.section}>
               <input
+                ref={namaInputRef}
                 type="text"
                 value={nama}
                 onChange={(e) => { setNama(e.target.value); setStatus(''); setStatusType(''); }}
@@ -201,7 +217,6 @@ export default function Home() {
                 autoFocus
               />
 
-              {/* Hasil Pencarian: Kartu + Tombol HADIR */}
               {umatTersaring.length > 0 && (
                 <div style={styles.resultList}>
                   {umatTersaring.map((u) => {
@@ -242,7 +257,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* KONTEN: SCAN QR */}
           {metode === 'scan' && (
             <div style={styles.section}>
               <form onSubmit={handleQrSubmit}>
@@ -267,22 +281,18 @@ export default function Home() {
             </div>
           )}
 
-          {/* Status Banner */}
           {status && (
             <div style={statusType === 'success' ? styles.successBanner : statusType === 'error' ? styles.errorBanner : styles.statusBox}>
               <p style={styles.status}>{status}</p>
             </div>
           )}
 
-          {/* Garis Pemisah */}
           <div style={styles.divider} />
 
-          {/* Tombol Daftar Umat Baru (tema emas sesuai screenshot) */}
           <a href="/daftar" style={styles.daftarLink}>
             👤+ Daftar Umat Baru
           </a>
 
-          {/* Footer Kutipan */}
           <div style={styles.footer}>
             <p style={styles.footerQuote}>"Appamādo amatapada"</p>
             <p style={styles.footerText}>Kewaspadaan adalah jalan menuju keabadian.</p>
@@ -313,8 +323,6 @@ const styles = {
   input: { width: '100%', padding: '16px', fontSize: '16px', border: '2px solid #E8DFC8', borderRadius: '12px', outline: 'none', boxSizing: 'border-box', backgroundColor: '#FDF8EE', fontFamily: 'inherit', color: '#3D4A42' },
   hint: { color: '#8A9A90', fontSize: '13px', marginTop: '8px', marginBottom: 0 },
   noResult: { color: '#8A9A90', fontSize: '14px', fontStyle: 'italic', marginTop: '12px', textAlign: 'center' },
-
-  // === KARTU HASIL + TOMBOL HADIR ===
   resultList: { display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' },
   resultCard: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '14px 16px', backgroundColor: '#FDF8EE', border: '2px solid #E8DFC8', borderRadius: '12px' },
   resultCardHadir: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '14px 16px', backgroundColor: '#E8F5E9', border: '2px solid #5B7060', borderRadius: '12px' },
@@ -324,7 +332,6 @@ const styles = {
   btnHadir: { padding: '12px 22px', backgroundColor: '#5B7060', color: '#FFFFFF', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '800', letterSpacing: '0.5px', boxShadow: '0 2px 6px rgba(91, 112, 96, 0.35)', flexShrink: 0 },
   btnHadirDisabled: { padding: '12px 22px', backgroundColor: '#A8B5AD', color: '#FFFFFF', border: 'none', borderRadius: '10px', cursor: 'wait', fontSize: '14px', fontWeight: '800', flexShrink: 0 },
   badgeHadir: { padding: '12px 18px', backgroundColor: '#5B7060', color: '#FFFFFF', borderRadius: '10px', fontSize: '14px', fontWeight: '800', letterSpacing: '0.5px', flexShrink: 0 },
-
   button: { width: '100%', padding: '18px', fontSize: '17px', fontWeight: '700', color: '#FFFFFF', backgroundColor: '#5B7060', border: 'none', borderRadius: '12px', cursor: 'pointer', marginTop: '8px' },
   buttonDisabled: { width: '100%', padding: '18px', fontSize: '17px', fontWeight: '700', color: '#FFFFFF', backgroundColor: '#A8B5AD', border: 'none', borderRadius: '12px', cursor: 'not-allowed', marginTop: '8px' },
   successBanner: { backgroundColor: '#E8F5E9', borderLeft: '4px solid #2E7D32', borderRadius: '10px', padding: '14px', marginTop: '16px' },
