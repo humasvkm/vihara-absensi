@@ -106,11 +106,23 @@ export default function AdminPage() {
         body: JSON.stringify({ action: 'getAbsensiHariIni' }) 
       });
       const data = await res.json();
+      console.log('=== DEBUG ABSENSI ===');
+      console.log('1. Raw response:', data);
+      console.log('2. Type of data:', typeof data);
+      console.log('3. data.success:', data?.success);
+      console.log('4. data.data:', data?.data);
+      console.log('5. data.data?.success:', data?.data?.success);
+      console.log('6. data.data?.data:', data?.data?.data);
+      
       const newData = parseResponse(data);
+      console.log('7. After parseResponse:', newData);
+      console.log('8. Is array?', Array.isArray(newData));
+      console.log('9. Length:', Array.isArray(newData) ? newData.length : 'N/A');
+      
       setAbsensiHariIni(Array.isArray(newData) ? newData : []);
       setLastRefresh(new Date());
     } catch (error) { 
-      console.error('Error muatAbsensiHariIni:', error); 
+      console.error('❌ Error muatAbsensiHariIni:', error); 
       setAbsensiHariIni([]); 
     } finally { 
       setLoadingAbsensi(false); 
