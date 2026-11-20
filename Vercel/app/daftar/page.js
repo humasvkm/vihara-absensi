@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function DaftarPage() {
   const [form, setForm] = useState({
@@ -12,32 +12,45 @@ export default function DaftarPage() {
     noWa: ''
   });
   const [status, setStatus] = useState('');
+  const [statusType, setStatusType] = useState(''); // 'success' | 'error' | ''
   const [loading, setLoading] = useState(false);
-  const [berhasil, setBerhasil] = useState(false);
+  const [successCount, setSuccessCount] = useState(0);
+  const formRef = useRef(null);
 
   const handleChange = (field, value) => {
     setForm({ ...form, [field]: value });
-    setStatus('');
+    if (statusType === 'error') setStatus('');
   };
+
+  // Scroll ke atas form setelah sukses
+  useEffect(() => {
+    if (statusType === 'success' && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [successCount]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!form.nama.trim()) {
       setStatus('⚠️ Nama lengkap wajib diisi.');
+      setStatusType('error');
       return;
     }
     if (!form.jenisKelamin) {
       setStatus('⚠️ Silakan pilih jenis kelamin.');
+      setStatusType('error');
       return;
     }
     if (!form.noWa.trim()) {
       setStatus('⚠️ Nomor WhatsApp/Telepon wajib diisi.');
+      setStatusType('error');
       return;
     }
 
     setLoading(true);
     setStatus('Sedang memproses pendaftaran... 🙏');
+    setStatusType('');
 
     try {
       const response = await fetch('/api/proxy', {
@@ -48,14 +61,18 @@ export default function DaftarPage() {
       const result = await response.json();
 
       if (result.success) {
-        setStatus('✅ ' + result.message);
-        setBerhasil(true);
+        setStatus('✅ Pendaftaran ' + form.nama + ' berhasil! ID: ' + (result.idUmat || '-') + '. Silakan isi data pendaftar berikutnya.');
+        setStatusType('success');
+        setSuccessCount(c => c + 1);
+        // Reset form untuk pendaftar berikutnya
         setForm({ nama: '', tanggalLahir: '', alamat: '', kota: '', kodePos: '', jenisKelamin: '', noWa: '' });
       } else {
         setStatus('❌ ' + result.message);
+        setStatusType('error');
       }
     } catch (error) {
       setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.');
+      setStatusType('error');
     } finally {
       setLoading(false);
     }
@@ -64,7 +81,7 @@ export default function DaftarPage() {
   return (
     <main style={styles.container}>
       <div style={styles.card}>
-        {/* Header Hijau Sage - Konsisten dengan halaman lain */}
+        {/* Header Hijau Sage - Konsisten */}
         <div style={styles.header}>
           <img 
             src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" 
@@ -79,140 +96,141 @@ export default function DaftarPage() {
           {/* Info Box */}
           <div style={styles.infoBox}>
             <p style={styles.infoText}>
-              🙏 Selamat datang. Silakan isi formulir di bawah ini untuk mendaftarkan diri Anda sebagai umat Vihara Karuna Mukti.
+              🙏 Selamat datang. Silakan isi formulir di bawah ini untuk mendaftarkan diri sebagai umat Vihara Karuna Mukti.
             </p>
           </div>
 
-          {berhasil ? (
-            <div style={styles.successBox}>
-              <p style={styles.successTitle}>✅ Pendaftaran Berhasil!</p>
-              <p style={styles.successText}>
-                Namo Buddhaya. Data Anda telah kami terima. Silakan kembali ke halaman absensi untuk melakukan check-in kehadiran.
-              </p>
-              <a href="/" style={styles.primaryLink}>← Kembali ke Halaman Absensi</a>
+          {/* Counter Pendaftar Hari Ini */}
+          {successCount > 0 && (
+            <div style={styles.counterBox}>
+              📊 <strong>{successCount}</strong> pendaftar berhasil didaftarkan pada sesi ini
             </div>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              {/* 1. NAMA LENGKAP */}
-              <div style={styles.formGroup}>
-                <label style={styles.label}>👤 Nama Lengkap <span style={styles.required}>*</span></label>
-                <input
-                  type="text"
-                  value={form.nama}
-                  onChange={(e) => handleChange('nama', e.target.value)}
-                  placeholder="Contoh: Slamet Sentosa"
-                  style={styles.input}
-                  required
-                />
-              </div>
-
-              {/* 2. TANGGAL LAHIR */}
-              <div style={styles.formGroup}>
-                <label style={styles.label}>🎂 Tanggal Lahir</label>
-                <input
-                  type="date"
-                  value={form.tanggalLahir}
-                  onChange={(e) => handleChange('tanggalLahir', e.target.value)}
-                  style={styles.input}
-                />
-              </div>
-
-              {/* 3. ALAMAT DOMISILI */}
-              <div style={styles.formGroup}>
-                <label style={styles.label}>📍 Alamat Domisili</label>
-                <textarea
-                  value={form.alamat}
-                  onChange={(e) => handleChange('alamat', e.target.value)}
-                  placeholder="Jl. ..."
-                  rows="3"
-                  style={styles.textarea}
-                />
-              </div>
-
-              {/* 4. KOTA & KODE POS (berdampingan) */}
-              <div style={styles.formRow}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>🏙️ Kota</label>
-                  <input
-                    type="text"
-                    value={form.kota}
-                    onChange={(e) => handleChange('kota', e.target.value)}
-                    placeholder="Bandung"
-                    style={styles.input}
-                  />
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>📮 Kode Pos</label>
-                  <input
-                    type="text"
-                    value={form.kodePos}
-                    onChange={(e) => handleChange('kodePos', e.target.value)}
-                    placeholder="40123"
-                    style={styles.input}
-                  />
-                </div>
-              </div>
-
-              {/* 5. JENIS KELAMIN */}
-              <div style={styles.formGroup}>
-                <label style={styles.label}>⚧ Jenis Kelamin <span style={styles.required}>*</span></label>
-                <div style={styles.genderRow}>
-                  <label style={form.jenisKelamin === 'Laki-laki' ? styles.genderActive : styles.genderBtn}>
-                    <input
-                      type="radio"
-                      name="jenisKelamin"
-                      value="Laki-laki"
-                      checked={form.jenisKelamin === 'Laki-laki'}
-                      onChange={(e) => handleChange('jenisKelamin', e.target.value)}
-                      style={styles.hiddenRadio}
-                    />
-                    <span>👨 Laki-laki</span>
-                  </label>
-                  <label style={form.jenisKelamin === 'Perempuan' ? styles.genderActive : styles.genderBtn}>
-                    <input
-                      type="radio"
-                      name="jenisKelamin"
-                      value="Perempuan"
-                      checked={form.jenisKelamin === 'Perempuan'}
-                      onChange={(e) => handleChange('jenisKelamin', e.target.value)}
-                      style={styles.hiddenRadio}
-                    />
-                    <span>👩 Perempuan</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* 6. NO. WA / TLP */}
-              <div style={styles.formGroup}>
-                <label style={styles.label}>📱 No. WA / TLP <span style={styles.required}>*</span></label>
-                <input
-                  type="tel"
-                  value={form.noWa}
-                  onChange={(e) => handleChange('noWa', e.target.value)}
-                  placeholder="08xxxxxxxxxx"
-                  style={styles.input}
-                  required
-                />
-                <p style={styles.hint}>Untuk informasi kegiatan Vihara</p>
-              </div>
-
-              {/* TOMBOL SUBMIT - Hijau Sage (konsisten) */}
-              <button 
-                type="submit" 
-                disabled={loading}
-                style={loading ? styles.buttonDisabled : styles.button}
-              >
-                {loading ? 'Memproses...' : '✨ Daftarkan Data'}
-              </button>
-            </form>
           )}
 
-          {status && !berhasil && (
-            <div style={styles.statusBox}>
+          {/* Pesan Sukses / Error */}
+          {status && (
+            <div style={statusType === 'success' ? styles.successBanner : statusType === 'error' ? styles.errorBanner : styles.statusBox}>
               <p style={styles.status}>{status}</p>
             </div>
           )}
 
+          {/* Form - SELALU TERLIHAT */}
+          <form onSubmit={handleSubmit} ref={formRef}>
+            {/* 1. NAMA LENGKAP */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>👤 Nama Lengkap <span style={styles.required}>*</span></label>
+              <input
+                type="text"
+                value={form.nama}
+                onChange={(e) => handleChange('nama', e.target.value)}
+                placeholder="Contoh: Slamet Sentosa"
+                style={styles.input}
+                required
+                autoFocus
+              />
+            </div>
+
+            {/* 2. TANGGAL LAHIR */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>🎂 Tanggal Lahir</label>
+              <input
+                type="date"
+                value={form.tanggalLahir}
+                onChange={(e) => handleChange('tanggalLahir', e.target.value)}
+                style={styles.input}
+              />
+            </div>
+
+            {/* 3. ALAMAT DOMISILI */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>📍 Alamat Domisili</label>
+              <textarea
+                value={form.alamat}
+                onChange={(e) => handleChange('alamat', e.target.value)}
+                placeholder="Jl. ..."
+                rows="3"
+                style={styles.textarea}
+              />
+            </div>
+
+            {/* 4. KOTA & KODE POS */}
+            <div style={styles.formRow}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>🏙️ Kota</label>
+                <input
+                  type="text"
+                  value={form.kota}
+                  onChange={(e) => handleChange('kota', e.target.value)}
+                  placeholder="Bandung"
+                  style={styles.input}
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>📮 Kode Pos</label>
+                <input
+                  type="text"
+                  value={form.kodePos}
+                  onChange={(e) => handleChange('kodePos', e.target.value)}
+                  placeholder="40123"
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            {/* 5. JENIS KELAMIN */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>⚧ Jenis Kelamin <span style={styles.required}>*</span></label>
+              <div style={styles.genderRow}>
+                <label style={form.jenisKelamin === 'Laki-laki' ? styles.genderActive : styles.genderBtn}>
+                  <input
+                    type="radio"
+                    name="jenisKelamin"
+                    value="Laki-laki"
+                    checked={form.jenisKelamin === 'Laki-laki'}
+                    onChange={(e) => handleChange('jenisKelamin', e.target.value)}
+                    style={styles.hiddenRadio}
+                  />
+                  <span>👨 Laki-laki</span>
+                </label>
+                <label style={form.jenisKelamin === 'Perempuan' ? styles.genderActive : styles.genderBtn}>
+                  <input
+                    type="radio"
+                    name="jenisKelamin"
+                    value="Perempuan"
+                    checked={form.jenisKelamin === 'Perempuan'}
+                    onChange={(e) => handleChange('jenisKelamin', e.target.value)}
+                    style={styles.hiddenRadio}
+                  />
+                  <span>👩 Perempuan</span>
+                </label>
+              </div>
+            </div>
+
+            {/* 6. NO. WA / TLP */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>📱 No. WA / TLP <span style={styles.required}>*</span></label>
+              <input
+                type="tel"
+                value={form.noWa}
+                onChange={(e) => handleChange('noWa', e.target.value)}
+                placeholder="08xxxxxxxxxx"
+                style={styles.input}
+                required
+              />
+              <p style={styles.hint}>Untuk informasi kegiatan Vihara</p>
+            </div>
+
+            {/* TOMBOL SUBMIT */}
+            <button 
+              type="submit" 
+              disabled={loading}
+              style={loading ? styles.buttonDisabled : styles.button}
+            >
+              {loading ? 'Memproses...' : '✨ Daftarkan Data'}
+            </button>
+          </form>
+
+          {/* Link Kembali ke Absensi */}
           <a href="/" style={styles.backLink}>← Kembali ke Halaman Absensi</a>
 
           <div style={styles.footer}>
@@ -274,13 +292,53 @@ const styles = {
     borderLeft: '4px solid #D4AF37',
     borderRadius: '8px',
     padding: '16px',
-    marginBottom: '24px'
+    marginBottom: '20px'
   },
   infoText: {
     color: '#5B7060',
     fontSize: '14px',
     lineHeight: '1.6',
     margin: 0
+  },
+  counterBox: {
+    backgroundColor: '#E8F5E9',
+    border: '1px solid #5B7060',
+    borderRadius: '10px',
+    padding: '12px 16px',
+    marginBottom: '16px',
+    color: '#5B7060',
+    fontSize: '14px',
+    fontWeight: '600',
+    textAlign: 'center'
+  },
+  successBanner: {
+    backgroundColor: '#E8F5E9',
+    borderLeft: '4px solid #2E7D32',
+    borderRadius: '10px',
+    padding: '16px',
+    marginBottom: '20px'
+  },
+  errorBanner: {
+    backgroundColor: '#FFEBEE',
+    borderLeft: '4px solid #C0392B',
+    borderRadius: '10px',
+    padding: '16px',
+    marginBottom: '20px'
+  },
+  statusBox: {
+    backgroundColor: '#F0F4F1',
+    borderRadius: '10px',
+    padding: '16px',
+    marginBottom: '20px',
+    borderLeft: '4px solid #D4AF37'
+  },
+  status: {
+    margin: 0,
+    fontSize: '15px',
+    fontWeight: '500',
+    color: '#5B7060',
+    lineHeight: '1.5',
+    textAlign: 'center'
   },
   formGroup: {
     marginBottom: '20px'
@@ -390,51 +448,6 @@ const styles = {
     borderRadius: '12px', 
     cursor: 'not-allowed',
     marginTop: '8px'
-  },
-  statusBox: {
-    backgroundColor: '#F0F4F1',
-    borderRadius: '12px',
-    padding: '16px',
-    marginTop: '20px',
-    borderLeft: '4px solid #D4AF37'
-  },
-  status: {
-    margin: 0,
-    fontSize: '15px',
-    fontWeight: '500',
-    color: '#5B7060',
-    lineHeight: '1.5',
-    textAlign: 'center'
-  },
-  successBox: {
-    backgroundColor: '#E8F5E9',
-    border: '2px solid #5B7060',
-    borderRadius: '12px',
-    padding: '24px',
-    textAlign: 'center',
-    marginBottom: '24px'
-  },
-  successTitle: {
-    color: '#5B7060',
-    fontSize: '20px',
-    fontWeight: '700',
-    margin: '0 0 12px 0'
-  },
-  successText: {
-    color: '#5B7060',
-    fontSize: '15px',
-    lineHeight: '1.6',
-    margin: '0 0 20px 0'
-  },
-  primaryLink: {
-    display: 'inline-block',
-    padding: '12px 24px',
-    backgroundColor: '#5B7060',
-    color: '#FFFFFF',
-    borderRadius: '10px',
-    textDecoration: 'none',
-    fontWeight: '600',
-    fontSize: '15px'
   },
   backLink: {
     display: 'block',
