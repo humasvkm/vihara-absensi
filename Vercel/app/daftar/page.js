@@ -5,11 +5,11 @@ export default function DaftarPage() {
   const [form, setForm] = useState({
     nama: '',
     tanggalLahir: '',
-    jenisKelamin: '',
-    noWa: '',
     alamat: '',
     kota: '',
-    kodePos: ''
+    kodePos: '',
+    jenisKelamin: '',
+    noWa: ''
   });
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,13 +23,16 @@ export default function DaftarPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validasi
     if (!form.nama.trim()) {
       setStatus('⚠️ Nama lengkap wajib diisi.');
       return;
     }
     if (!form.jenisKelamin) {
       setStatus('⚠️ Silakan pilih jenis kelamin.');
+      return;
+    }
+    if (!form.noWa.trim()) {
+      setStatus('⚠️ Nomor WhatsApp/Telepon wajib diisi.');
       return;
     }
 
@@ -40,21 +43,14 @@ export default function DaftarPage() {
       const response = await fetch('/api/proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'simpanPendaftaranUmat',
-          data: form
-        })
+        body: JSON.stringify({ action: 'simpanPendaftaranUmat', data: form })
       });
-
       const result = await response.json();
 
       if (result.success) {
         setStatus('✅ ' + result.message);
         setBerhasil(true);
-        setForm({
-          nama: '', tanggalLahir: '', jenisKelamin: '',
-          noWa: '', alamat: '', kota: '', kodePos: ''
-        });
+        setForm({ nama: '', tanggalLahir: '', alamat: '', kota: '', kodePos: '', jenisKelamin: '', noWa: '' });
       } else {
         setStatus('❌ ' + result.message);
       }
@@ -68,7 +64,7 @@ export default function DaftarPage() {
   return (
     <main style={styles.container}>
       <div style={styles.card}>
-        {/* Header */}
+        {/* Header Hijau Sage - Konsisten dengan halaman lain */}
         <div style={styles.header}>
           <img 
             src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" 
@@ -83,7 +79,7 @@ export default function DaftarPage() {
           {/* Info Box */}
           <div style={styles.infoBox}>
             <p style={styles.infoText}>
-              🙏 Selamat datang. Silakan isi formulir di bawah ini untuk mendaftarkan diri Anda sebagai umat Vihara Karuna Mukti. Data Anda akan dijaga dengan aman.
+              🙏 Selamat datang. Silakan isi formulir di bawah ini untuk mendaftarkan diri Anda sebagai umat Vihara Karuna Mukti.
             </p>
           </div>
 
@@ -97,93 +93,51 @@ export default function DaftarPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
-              {/* Nama Lengkap */}
+              {/* 1. NAMA LENGKAP */}
               <div style={styles.formGroup}>
                 <label style={styles.label}>👤 Nama Lengkap <span style={styles.required}>*</span></label>
                 <input
                   type="text"
                   value={form.nama}
                   onChange={(e) => handleChange('nama', e.target.value)}
-                  placeholder="Masukkan nama lengkap"
+                  placeholder="Contoh: Slamet Sentosa"
                   style={styles.input}
                   required
                 />
               </div>
 
-              {/* Tanggal Lahir & Jenis Kelamin */}
-              <div style={styles.formRow}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>🎂 Tanggal Lahir</label>
-                  <input
-                    type="date"
-                    value={form.tanggalLahir}
-                    onChange={(e) => handleChange('tanggalLahir', e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>⚧ Jenis Kelamin <span style={styles.required}>*</span></label>
-                  <div style={styles.radioGroup}>
-                    <label style={styles.radioLabel}>
-                      <input
-                        type="radio"
-                        name="jenisKelamin"
-                        value="Laki-laki"
-                        checked={form.jenisKelamin === 'Laki-laki'}
-                        onChange={(e) => handleChange('jenisKelamin', e.target.value)}
-                        style={styles.radio}
-                      />
-                      👨 Laki-laki
-                    </label>
-                    <label style={styles.radioLabel}>
-                      <input
-                        type="radio"
-                        name="jenisKelamin"
-                        value="Perempuan"
-                        checked={form.jenisKelamin === 'Perempuan'}
-                        onChange={(e) => handleChange('jenisKelamin', e.target.value)}
-                        style={styles.radio}
-                      />
-                      👩 Perempuan
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* No. WhatsApp */}
+              {/* 2. TANGGAL LAHIR */}
               <div style={styles.formGroup}>
-                <label style={styles.label}>📱 No. WhatsApp / Telepon</label>
+                <label style={styles.label}>🎂 Tanggal Lahir</label>
                 <input
-                  type="tel"
-                  value={form.noWa}
-                  onChange={(e) => handleChange('noWa', e.target.value)}
-                  placeholder="Contoh: 081234567890"
+                  type="date"
+                  value={form.tanggalLahir}
+                  onChange={(e) => handleChange('tanggalLahir', e.target.value)}
                   style={styles.input}
                 />
-                <p style={styles.hint}>Untuk informasi kegiatan Vihara</p>
               </div>
 
-              {/* Alamat */}
+              {/* 3. ALAMAT DOMISILI */}
               <div style={styles.formGroup}>
-                <label style={styles.label}>📍 Alamat Domisili (Sekarang)</label>
+                <label style={styles.label}>📍 Alamat Domisili</label>
                 <textarea
                   value={form.alamat}
                   onChange={(e) => handleChange('alamat', e.target.value)}
-                  placeholder="Jalan, nomor rumah, RT/RW, kelurahan"
+                  placeholder="Jl. ..."
                   rows="3"
                   style={styles.textarea}
                 />
               </div>
 
-              {/* Kota & Kode Pos */}
+              {/* 4. KOTA & KODE POS (berdampingan) */}
               <div style={styles.formRow}>
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>🏙️ Kota / Kabupaten</label>
+                  <label style={styles.label}>🏙️ Kota</label>
                   <input
                     type="text"
                     value={form.kota}
                     onChange={(e) => handleChange('kota', e.target.value)}
-                    placeholder="Contoh: Bandung"
+                    placeholder="Bandung"
                     style={styles.input}
                   />
                 </div>
@@ -193,13 +147,56 @@ export default function DaftarPage() {
                     type="text"
                     value={form.kodePos}
                     onChange={(e) => handleChange('kodePos', e.target.value)}
-                    placeholder="Contoh: 40123"
+                    placeholder="40123"
                     style={styles.input}
                   />
                 </div>
               </div>
 
-              {/* Tombol Submit */}
+              {/* 5. JENIS KELAMIN */}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>⚧ Jenis Kelamin <span style={styles.required}>*</span></label>
+                <div style={styles.genderRow}>
+                  <label style={form.jenisKelamin === 'Laki-laki' ? styles.genderActive : styles.genderBtn}>
+                    <input
+                      type="radio"
+                      name="jenisKelamin"
+                      value="Laki-laki"
+                      checked={form.jenisKelamin === 'Laki-laki'}
+                      onChange={(e) => handleChange('jenisKelamin', e.target.value)}
+                      style={styles.hiddenRadio}
+                    />
+                    <span>👨 Laki-laki</span>
+                  </label>
+                  <label style={form.jenisKelamin === 'Perempuan' ? styles.genderActive : styles.genderBtn}>
+                    <input
+                      type="radio"
+                      name="jenisKelamin"
+                      value="Perempuan"
+                      checked={form.jenisKelamin === 'Perempuan'}
+                      onChange={(e) => handleChange('jenisKelamin', e.target.value)}
+                      style={styles.hiddenRadio}
+                    />
+                    <span>👩 Perempuan</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 6. NO. WA / TLP */}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>📱 No. WA / TLP <span style={styles.required}>*</span></label>
+                <input
+                  type="tel"
+                  value={form.noWa}
+                  onChange={(e) => handleChange('noWa', e.target.value)}
+                  placeholder="08xxxxxxxxxx"
+                  style={styles.input}
+                  required
+                />
+                <p style={styles.hint}>Untuk informasi kegiatan Vihara</p>
+              </div>
+
+              {/* TOMBOL SUBMIT - Hijau Sage (konsisten) */}
               <button 
                 type="submit" 
                 disabled={loading}
@@ -210,19 +207,14 @@ export default function DaftarPage() {
             </form>
           )}
 
-          {/* Status Message */}
           {status && !berhasil && (
             <div style={styles.statusBox}>
               <p style={styles.status}>{status}</p>
             </div>
           )}
 
-          {/* Link Kembali */}
-          <a href="/" style={styles.secondaryLink}>
-            ← Kembali ke Halaman Absensi
-          </a>
+          <a href="/" style={styles.backLink}>← Kembali ke Halaman Absensi</a>
 
-          {/* Footer Kutipan */}
           <div style={styles.footer}>
             <p style={styles.footerQuote}>🙏 "Sabbe sattā bhavantu sukhitattā"</p>
             <p style={styles.footerText}>Semoga semua makhluk berbahagia.</p>
@@ -279,8 +271,8 @@ const styles = {
   },
   infoBox: {
     backgroundColor: '#FDF6E3',
-    border: '2px solid #D4AF37',
-    borderRadius: '12px',
+    borderLeft: '4px solid #D4AF37',
+    borderRadius: '8px',
     padding: '16px',
     marginBottom: '24px'
   },
@@ -289,6 +281,130 @@ const styles = {
     fontSize: '14px',
     lineHeight: '1.6',
     margin: 0
+  },
+  formGroup: {
+    marginBottom: '20px'
+  },
+  formRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px'
+  },
+  label: { 
+    display: 'block', 
+    color: '#5B7060', 
+    fontWeight: '600', 
+    marginBottom: '8px', 
+    fontSize: '15px' 
+  },
+  required: {
+    color: '#C0392B'
+  },
+  input: { 
+    width: '100%', 
+    padding: '14px', 
+    fontSize: '16px', 
+    border: '2px solid #D1DBD4', 
+    borderRadius: '10px', 
+    outline: 'none', 
+    boxSizing: 'border-box',
+    backgroundColor: '#FAFBFA',
+    fontFamily: 'inherit',
+    color: '#3D4A42'
+  },
+  textarea: {
+    width: '100%', 
+    padding: '14px', 
+    fontSize: '16px', 
+    border: '2px solid #D1DBD4', 
+    borderRadius: '10px', 
+    outline: 'none', 
+    boxSizing: 'border-box',
+    backgroundColor: '#FAFBFA',
+    fontFamily: 'inherit',
+    color: '#3D4A42',
+    resize: 'vertical'
+  },
+  hint: {
+    color: '#8A9A90',
+    fontSize: '13px',
+    marginTop: '6px',
+    marginBottom: 0
+  },
+  genderRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '12px'
+  },
+  genderBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '14px',
+    backgroundColor: '#FAFBFA',
+    border: '2px solid #D1DBD4',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#5B7060',
+    transition: 'all 0.2s'
+  },
+  genderActive: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '14px',
+    backgroundColor: '#E8F0EB',
+    border: '2px solid #5B7060',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#5B7060'
+  },
+  hiddenRadio: {
+    display: 'none'
+  },
+  button: { 
+    width: '100%', 
+    padding: '18px', 
+    fontSize: '17px', 
+    fontWeight: '700', 
+    color: '#FFFFFF', 
+    backgroundColor: '#5B7060', 
+    border: 'none', 
+    borderRadius: '12px', 
+    cursor: 'pointer',
+    marginTop: '8px',
+    transition: 'background-color 0.2s'
+  },
+  buttonDisabled: { 
+    width: '100%', 
+    padding: '18px', 
+    fontSize: '17px', 
+    fontWeight: '700', 
+    color: '#FFFFFF', 
+    backgroundColor: '#A8B5AD', 
+    border: 'none', 
+    borderRadius: '12px', 
+    cursor: 'not-allowed',
+    marginTop: '8px'
+  },
+  statusBox: {
+    backgroundColor: '#F0F4F1',
+    borderRadius: '12px',
+    padding: '16px',
+    marginTop: '20px',
+    borderLeft: '4px solid #D4AF37'
+  },
+  status: {
+    margin: 0,
+    fontSize: '15px',
+    fontWeight: '500',
+    color: '#5B7060',
+    lineHeight: '1.5',
+    textAlign: 'center'
   },
   successBox: {
     backgroundColor: '#E8F5E9',
@@ -320,117 +436,7 @@ const styles = {
     fontWeight: '600',
     fontSize: '15px'
   },
-  formGroup: {
-    marginBottom: '20px'
-  },
-  formRow: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '16px',
-    marginBottom: '4px'
-  },
-  label: { 
-    display: 'block', 
-    color: '#5B7060', 
-    fontWeight: '600', 
-    marginBottom: '8px', 
-    fontSize: '15px' 
-  },
-  required: {
-    color: '#C0392B'
-  },
-  input: { 
-    width: '100%', 
-    padding: '14px', 
-    fontSize: '16px', 
-    border: '2px solid #D1DBD4', 
-    borderRadius: '10px', 
-    outline: 'none', 
-    boxSizing: 'border-box',
-    backgroundColor: '#FAFBFA',
-    fontFamily: 'inherit'
-  },
-  textarea: {
-    width: '100%', 
-    padding: '14px', 
-    fontSize: '16px', 
-    border: '2px solid #D1DBD4', 
-    borderRadius: '10px', 
-    outline: 'none', 
-    boxSizing: 'border-box',
-    backgroundColor: '#FAFBFA',
-    fontFamily: 'inherit',
-    resize: 'vertical'
-  },
-  hint: {
-    color: '#8A9A90',
-    fontSize: '13px',
-    marginTop: '6px',
-    marginBottom: 0
-  },
-  radioGroup: {
-    display: 'flex',
-    gap: '16px',
-    marginTop: '4px'
-  },
-  radioLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    color: '#5B7060',
-    fontSize: '15px',
-    cursor: 'pointer',
-    padding: '10px 16px',
-    border: '2px solid #D1DBD4',
-    borderRadius: '10px',
-    flex: 1,
-    justifyContent: 'center'
-  },
-  radio: {
-    accentColor: '#5B7060',
-    width: '18px',
-    height: '18px'
-  },
-  button: { 
-    width: '100%', 
-    padding: '18px', 
-    fontSize: '17px', 
-    fontWeight: '700', 
-    color: '#FFFFFF', 
-    backgroundColor: '#5B7060', 
-    border: 'none', 
-    borderRadius: '12px', 
-    cursor: 'pointer',
-    marginTop: '8px'
-  },
-  buttonDisabled: { 
-    width: '100%', 
-    padding: '18px', 
-    fontSize: '17px', 
-    fontWeight: '700', 
-    color: '#FFFFFF', 
-    backgroundColor: '#A8B5AD', 
-    border: 'none', 
-    borderRadius: '12px', 
-    cursor: 'not-allowed',
-    marginTop: '8px'
-  },
-  statusBox: {
-    backgroundColor: '#F0F4F1',
-    borderRadius: '12px',
-    padding: '16px',
-    marginTop: '20px',
-    borderLeft: '4px solid #D4AF37'
-  },
-  status: {
-    margin: 0,
-    fontSize: '15px',
-    fontWeight: '500',
-    color: '#5B7060',
-    lineHeight: '1.5',
-    textAlign: 'center'
-  },
-  secondaryLink: {
+  backLink: {
     display: 'block',
     textAlign: 'center',
     marginTop: '20px',
