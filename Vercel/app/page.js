@@ -16,7 +16,7 @@ export default function Home() {
   
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
-  const [cameraReady, setCameraReady] = useState(false); // kamera sudah benar-benar aktif
+  const [cameraReady, setCameraReady] = useState(false);
   const [scanCount, setScanCount] = useState(0);
   const [lastScan, setLastScan] = useState(null);
   
@@ -33,45 +33,28 @@ export default function Home() {
     }
   }, [metode, cameraActive]);
 
-  // === PENTING: Mulai kamera HANYA setelah div #qr-reader di-render ===
   useEffect(() => {
     if (cameraActive && !cameraReady) {
-      // Beri React waktu 100ms untuk me-render div #qr-reader
-      const timer = setTimeout(() => {
-        startCameraInternal();
-      }, 100);
+      const timer = setTimeout(() => { startCameraInternal(); }, 100);
       return () => clearTimeout(timer);
     }
   }, [cameraActive, cameraReady]);
 
-  // Stop kamera saat toggle berubah atau komponen unmount
   useEffect(() => {
-    if (metode !== 'scan') {
-      stopCameraInternal();
-    }
+    if (metode !== 'scan') stopCameraInternal();
     return () => { stopCameraInternal(); };
   }, [metode]);
 
   const muatDataAwal = async () => {
     try {
-      const resKeg = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'getKegiatanHariIni' })
-      });
+      const resKeg = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getKegiatanHariIni' }) });
       const kegData = await resKeg.json();
       if (kegData.success && kegData.data) setKegiatanHariIni(kegData.data);
 
-      const resUmat = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'getDaftarUmat' })
-      });
+      const resUmat = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDaftarUmat' }) });
       const umatData = await resUmat.json();
       if (umatData.success) setDaftarUmat(umatData.data || []);
-    } catch (error) {
-      console.error('Gagal memuat data awal:', error);
-    }
+    } catch (error) { console.error('Gagal memuat data awal:', error); }
   };
 
   const umatTersaring = nama.length >= 2
@@ -80,203 +63,118 @@ export default function Home() {
 
   const resetSetelahSukses = (delay = 1500) => {
     setTimeout(() => {
-      setNama('');
-      setStatus('');
-      setStatusType('');
-      setLoadingId(null);
+      setNama(''); setStatus(''); setStatusType(''); setLoadingId(null);
       if (namaInputRef.current) namaInputRef.current.focus();
     }, delay);
   };
 
   const handleHadir = async (umat) => {
-    if (!kegiatanHariIni || !kegiatanHariIni.valid) {
-      setStatus('⚠️ Tidak ada kegiatan aktif hari ini.');
-      setStatusType('error');
-      return;
-    }
+    if (!kegiatanHariIni || !kegiatanHariIni.valid) { setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); setStatusType('error'); return; }
     if (hadirSet.has(umat.id)) return;
 
-    setLoadingId(umat.id);
-    setStatus('');
-    setStatusType('');
+    setLoadingId(umat.id); setStatus(''); setStatusType('');
 
     try {
-      const response = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'simpanAbsensi',
-          data: {
-            idUmat: umat.id,
-            nama: umat.nama,
-            noWa: umat.noWa || '',
-            idKegiatan: kegiatanHariIni.id,
-            namaKegiatan: kegiatanHariIni.nama,
-            metode: 'Manual_Input'
-          }
-        })
-      });
+      const response = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'simpanAbsensi', data: { idUmat: umat.id, nama: umat.nama, noWa: umat.noWa || '', idKegiatan: kegiatanHariIni.id, namaKegiatan: kegiatanHariIni.nama, metode: 'Manual_Input' } }) });
       const result = await response.json();
 
       if (result.success) {
         setHadirSet(prev => new Set(prev).add(umat.id));
-        setStatus('✅ ' + result.message);
-        setStatusType('success');
+        setStatus('✅ ' + result.message); setStatusType('success');
         resetSetelahSukses();
       } else {
-        if (result.message && result.message.toLowerCase().includes('sudah')) {
-          setHadirSet(prev => new Set(prev).add(umat.id));
-        }
-        setStatus('❌ ' + result.message);
-        setStatusType('error');
-        setLoadingId(null);
+        if (result.message && result.message.toLowerCase().includes('sudah')) setHadirSet(prev => new Set(prev).add(umat.id));
+        setStatus('❌ ' + result.message); setStatusType('error'); setLoadingId(null);
       }
-    } catch (error) {
-      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.');
-      setStatusType('error');
-      setLoadingId(null);
-    }
+    } catch (error) { setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); setStatusType('error'); setLoadingId(null); }
   };
 
   const processQrScan = async (idUmatScan, source = 'camera') => {
     if (isScanningRef.current) return;
     isScanningRef.current = true;
 
-    if (!idUmatScan || !idUmatScan.trim()) {
-      isScanningRef.current = false;
-      return;
-    }
+    if (!idUmatScan || !idUmatScan.trim()) { isScanningRef.current = false; return; }
+    if (!kegiatanHariIni || !kegiatanHariIni.valid) { setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); setStatusType('error'); isScanningRef.current = false; return; }
 
-    if (!kegiatanHariIni || !kegiatanHariIni.valid) {
-      setStatus('⚠️ Tidak ada kegiatan aktif hari ini.');
-      setStatusType('error');
-      isScanningRef.current = false;
-      return;
-    }
-
-    setLoadingQr(true);
-    setStatus('Memverifikasi... 🙏');
-    setStatusType('');
+    setLoadingQr(true); setStatus('Memverifikasi... 🙏'); setStatusType('');
 
     try {
-      const response = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'prosesCheckinQR',
-          data: { idUmatScan: idUmatScan.trim() }
-        })
-      });
+      const response = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'prosesCheckinQR', data: { idUmatScan: idUmatScan.trim() } }) });
       const result = await response.json();
 
       if (result.success) {
         setScanCount(prev => prev + 1);
         setLastScan({ nama: result.nama, id: idUmatScan.trim(), time: new Date() });
-        setStatus('✅ ' + result.message);
-        setStatusType('success');
+        setStatus('✅ ' + result.message); setStatusType('success');
         setQrInput('');
         
+        // ⚡ OPTIMASI: Unlock lebih cepat (500ms)
         setTimeout(() => {
-          setStatus('');
-          setStatusType('');
+          setStatus(''); setStatusType('');
           isScanningRef.current = false;
-          if (source === 'manual' && qrInputRef.current) {
-            qrInputRef.current.focus();
-          }
-        }, 1500);
+          if (source === 'manual' && qrInputRef.current) qrInputRef.current.focus();
+        }, 500);
       } else {
-        setStatus('❌ ' + result.message);
-        setStatusType('error');
-        setTimeout(() => { isScanningRef.current = false; }, 2000);
+        setStatus('❌ ' + result.message); setStatusType('error');
+        setTimeout(() => { isScanningRef.current = false; }, 1000); // ⚡ Unlock error 1000ms
       }
     } catch (error) {
-      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.');
-      setStatusType('error');
-      setTimeout(() => { isScanningRef.current = false; }, 2000);
-    } finally {
-      setLoadingQr(false);
-    }
+      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); setStatusType('error');
+      setTimeout(() => { isScanningRef.current = false; }, 1000);
+    } finally { setLoadingQr(false); }
   };
 
-  // === FUNGSI INTERNAL: Mulai kamera (dipanggil setelah div siap) ===
   const startCameraInternal = async () => {
     setCameraError('');
     try {
-      // Cek apakah elemen sudah ada di DOM
       const readerElement = document.getElementById('qr-reader');
-      if (!readerElement) {
-        setCameraError('Elemen kamera belum siap. Silakan coba lagi.');
-        setCameraActive(false);
-        return;
-      }
+      if (!readerElement) { setCameraError('Elemen kamera belum siap.'); setCameraActive(false); return; }
 
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
 
+      // ⚡ OPTIMASI: FPS 20 + QR Box 200x200
       await html5QrCode.start(
-        { facingMode: { exact: 'environment' } }, // kamera belakang
-        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-        (decodedText) => {
-          processQrScan(decodedText, 'camera');
-        },
+        { facingMode: { exact: 'environment' } },
+        { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
+        (decodedText) => { processQrScan(decodedText, 'camera'); },
         () => { /* abaikan error parsing normal */ }
       );
       setCameraReady(true);
-      setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.');
-      setStatusType('');
+      setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); setStatusType('');
     } catch (err) {
-      // Fallback: jika 'exact' gagal, coba tanpa exact
       try {
         const html5QrCode = new Html5Qrcode('qr-reader');
         html5QrCodeRef.current = html5QrCode;
         await html5QrCode.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+          { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
           (decodedText) => { processQrScan(decodedText, 'camera'); },
           () => { /* ignore */ }
         );
         setCameraReady(true);
-        setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.');
-        setStatusType('');
+        setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); setStatusType('');
       } catch (err2) {
-        setCameraError('Tidak dapat mengakses kamera. Pastikan Anda memberikan izin kamera pada browser. (' + err2.message + ')');
-        setCameraActive(false);
-        setCameraReady(false);
+        setCameraError('Tidak dapat mengakses kamera. Pastikan izin kamera diberikan. (' + err2.message + ')');
+        setCameraActive(false); setCameraReady(false);
       }
     }
   };
 
-  // === FUNGSI INTERNAL: Stop kamera ===
   const stopCameraInternal = async () => {
     if (html5QrCodeRef.current && cameraReady) {
-      try {
-        await html5QrCodeRef.current.stop();
-        html5QrCodeRef.current.clear();
-      } catch (err) { /* ignore */ }
+      try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (err) { /* ignore */ }
       html5QrCodeRef.current = null;
     }
     setCameraReady(false);
   };
 
-  // === HANDLER TOMBOL: hanya ubah state ===
-  const handleMulaiScan = () => {
-    setCameraError('');
-    setCameraActive(true);
-    // useEffect akan memanggil startCameraInternal setelah div di-render
-  };
-
-  const handleStopScan = () => {
-    stopCameraInternal();
-    setCameraActive(false);
-  };
+  const handleMulaiScan = () => { setCameraError(''); setCameraActive(true); };
+  const handleStopScan = () => { stopCameraInternal(); setCameraActive(false); };
 
   const handleQrManualSubmit = async (e) => {
     e.preventDefault();
-    if (!qrInput.trim()) {
-      setStatus('⚠️ Masukkan ID Umat terlebih dahulu.');
-      setStatusType('error');
-      return;
-    }
+    if (!qrInput.trim()) { setStatus('⚠️ Masukkan ID Umat.'); setStatusType('error'); return; }
     await processQrScan(qrInput, 'manual');
   };
 
@@ -284,11 +182,7 @@ export default function Home() {
     <main style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <img
-            src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0"
-            alt="Logo Dharma Chakra"
-            style={styles.logo}
-          />
+          <img src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" alt="Logo Dharma Chakra" style={styles.logo} />
           <h1 style={styles.headerTitle}>Absensi Kehadiran</h1>
           <p style={styles.headerSubtitle}>Vihara Karuna Mukti, Bandung</p>
         </div>
@@ -296,55 +190,28 @@ export default function Home() {
         <div style={styles.body}>
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>📅 KEGIATAN HARI INI</div>
-{kegiatanHariIni && kegiatanHariIni.valid ? (
-  <>
-    <div style={styles.infoNama}>{kegiatanHariIni.nama}</div>
-    <div style={styles.infoDetail}>{kegiatanHariIni.tanggal} | {kegiatanHariIni.waktu}</div>
-  </>
-) : (
-  <>
-    <div style={styles.infoNama}>
-      {kegiatanHariIni && kegiatanHariIni.message ? '🕐 Informasi Kegiatan' : '🧘‍♂️ Tidak Ada Kegiatan'}
-    </div>
-    <div style={styles.infoDetail}>
-      {kegiatanHariIni && kegiatanHariIni.message 
-        ? kegiatanHariIni.message 
-        : 'Nikmati hari Anda dengan tenang.'}
-    </div>
-    <div style={styles.infoJadwal}>
-      🗓️ Jadwal Rutin: Minggu (08:00-11:00 Puja Bakti) & Rabu (17:00-19:00 Meditasi)
-    </div>
-  </>
-)}
+            {kegiatanHariIni && kegiatanHariIni.valid ? (
+              <>
+                <div style={styles.infoNama}>{kegiatanHariIni.nama}</div>
+                <div style={styles.infoDetail}>{kegiatanHariIni.tanggal} | {kegiatanHariIni.waktu}</div>
+              </>
+            ) : (
+              <>
+                <div style={styles.infoNama}>🧘‍♂️ Tidak Ada Kegiatan Rutin</div>
+                <div style={styles.infoDetail}>Nikmati hari Anda dengan tenang.</div>
+                <div style={styles.infoJadwal}>🗓️ Jadwal Rutin: Minggu (08:00 - Puja Bakti) & Rabu (17:00 - Meditasi)</div>
+              </>
+            )}
           </div>
 
           <div style={styles.toggleContainer}>
-            <button
-              onClick={() => { setMetode('cari'); setStatus(''); setStatusType(''); }}
-              style={metode === 'cari' ? styles.toggleActive : styles.toggle}
-            >
-              🔍 Cari Nama
-            </button>
-            <button
-              onClick={() => { setMetode('scan'); setStatus(''); setStatusType(''); setQrInput(''); }}
-              style={metode === 'scan' ? styles.toggleActive : styles.toggle}
-            >
-              📷 Scan QR
-            </button>
+            <button onClick={() => { setMetode('cari'); setStatus(''); setStatusType(''); }} style={metode === 'cari' ? styles.toggleActive : styles.toggle}>🔍 Cari Nama</button>
+            <button onClick={() => { setMetode('scan'); setStatus(''); setStatusType(''); setQrInput(''); }} style={metode === 'scan' ? styles.toggleActive : styles.toggle}>📷 Scan QR</button>
           </div>
 
           {metode === 'cari' && (
             <div style={styles.section}>
-              <input
-                ref={namaInputRef}
-                type="text"
-                value={nama}
-                onChange={(e) => { setNama(e.target.value); setStatus(''); setStatusType(''); }}
-                placeholder="Ketik minimal 2 huruf untuk mencari..."
-                style={styles.input}
-                autoFocus
-              />
-
+              <input ref={namaInputRef} type="text" value={nama} onChange={(e) => { setNama(e.target.value); setStatus(''); setStatusType(''); }} placeholder="Ketik minimal 2 huruf untuk mencari..." style={styles.input} autoFocus />
               {umatTersaring.length > 0 && (
                 <div style={styles.resultList}>
                   {umatTersaring.map((u) => {
@@ -359,11 +226,7 @@ export default function Home() {
                         {sudahHadir ? (
                           <span style={styles.badgeHadir}>✓ HADIR</span>
                         ) : (
-                          <button
-                            onClick={() => handleHadir(u)}
-                            disabled={isLoading}
-                            style={isLoading ? styles.btnHadirDisabled : styles.btnHadir}
-                          >
+                          <button onClick={() => handleHadir(u)} disabled={isLoading} style={isLoading ? styles.btnHadirDisabled : styles.btnHadir}>
                             {isLoading ? '...' : 'HADIR'}
                           </button>
                         )}
@@ -372,27 +235,14 @@ export default function Home() {
                   })}
                 </div>
               )}
-
-              {nama.length >= 2 && umatTersaring.length === 0 && (
-                <p style={styles.noResult}>
-                  Nama tidak ditemukan. Silakan <strong>Daftar Umat Baru</strong> di bawah.
-                </p>
-              )}
-
-              {nama.length < 2 && (
-                <p style={styles.hint}>Ketik minimal 2 huruf untuk menampilkan daftar nama</p>
-              )}
+              {nama.length >= 2 && umatTersaring.length === 0 && <p style={styles.noResult}>Nama tidak ditemukan. Silakan <strong>Daftar Umat Baru</strong> di bawah.</p>}
+              {nama.length < 2 && <p style={styles.hint}>Ketik minimal 2 huruf untuk menampilkan daftar nama</p>}
             </div>
           )}
 
           {metode === 'scan' && (
             <div style={styles.section}>
-              {scanCount > 0 && (
-                <div style={styles.scanCounter}>
-                  📊 <strong>{scanCount}</strong> umat telah check-in via QR pada sesi ini
-                </div>
-              )}
-
+              {scanCount > 0 && <div style={styles.scanCounter}>📊 <strong>{scanCount}</strong> umat telah check-in via QR pada sesi ini</div>}
               {lastScan && (
                 <div style={styles.lastScanCard}>
                   <div style={styles.lastScanInfo}>
@@ -401,69 +251,28 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
-              {/* Error kamera selalu tampil di atas area kamera */}
-              {cameraError && (
-                <div style={styles.errorBanner}>
-                  <p style={styles.status}>⚠️ {cameraError}</p>
-                </div>
-              )}
-
-              {/* Area Kamera */}
+              {cameraError && <div style={styles.errorBanner}><p style={styles.status}>⚠️ {cameraError}</p></div>}
               {!cameraActive ? (
                 <div style={styles.cameraPlaceholder}>
                   <div style={styles.cameraIcon}>📷</div>
-                  <p style={styles.cameraText}>
-                    Buka kamera HP untuk scan QR Code ID Umat.
-                    <br />
-                    <span style={{fontSize: '13px', color: '#8A9A90'}}>
-                      Data tersimpan otomatis saat QR terdeteksi.
-                    </span>
-                  </p>
-                  <button onClick={handleMulaiScan} style={styles.btnCamera}>
-                    🎥 Mulai Scan dengan Kamera
-                  </button>
+                  <p style={styles.cameraText}>Buka kamera HP untuk scan QR Code ID Umat.<br /><span style={{fontSize: '13px', color: '#8A9A90'}}>Data tersimpan otomatis saat QR terdeteksi.</span></p>
+                  <button onClick={handleMulaiScan} style={styles.btnCamera}>🎥 Mulai Scan dengan Kamera</button>
                 </div>
               ) : (
                 <div style={styles.cameraWrapper}>
                   <div id="qr-reader" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden' }} />
-                  {cameraReady && (
-                    <div style={styles.cameraHint}>
-                      🙏 Arahkan QR Code ID Umat ke kamera
-                    </div>
-                  )}
-                  {!cameraReady && (
-                    <div style={styles.cameraHintLoading}>
-                      ⏳ Memulai kamera...
-                    </div>
-                  )}
-                  <button onClick={handleStopScan} style={styles.btnStopCamera}>
-                    ⏹️ Hentikan Kamera
-                  </button>
+                  {cameraReady && <div style={styles.cameraHint}>🙏 Arahkan QR Code ID Umat ke kamera</div>}
+                  {!cameraReady && <div style={styles.cameraHintLoading}>⏳ Memulai kamera...</div>}
+                  <button onClick={handleStopScan} style={styles.btnStopCamera}>⏹️ Hentikan Kamera</button>
                 </div>
               )}
-
-              {/* Fallback: Input Manual */}
               {!cameraActive && (
                 <div style={styles.manualSection}>
                   <div style={styles.dividerText}>— atau masukkan ID manual —</div>
                   <form onSubmit={handleQrManualSubmit}>
-                    <input
-                      ref={qrInputRef}
-                      type="text"
-                      value={qrInput}
-                      onChange={(e) => { setQrInput(e.target.value); setStatus(''); setStatusType(''); }}
-                      placeholder="Contoh: VKM-001"
-                      style={styles.input}
-                    />
-                    <p style={styles.hint}>
-                      Tekan Enter untuk submit otomatis (cocok untuk scanner USB)
-                    </p>
-                    <button
-                      type="submit"
-                      disabled={loadingQr || !qrInput.trim()}
-                      style={(loadingQr || !qrInput.trim()) ? styles.buttonDisabled : styles.button}
-                    >
+                    <input ref={qrInputRef} type="text" value={qrInput} onChange={(e) => { setQrInput(e.target.value); setStatus(''); setStatusType(''); }} placeholder="Contoh: VKM-001" style={styles.input} />
+                    <p style={styles.hint}>Tekan Enter untuk submit otomatis (cocok untuk scanner USB)</p>
+                    <button type="submit" disabled={loadingQr || !qrInput.trim()} style={(loadingQr || !qrInput.trim()) ? styles.buttonDisabled : styles.button}>
                       {loadingQr ? 'Memverifikasi...' : '✨ Check-in via ID'}
                     </button>
                   </form>
@@ -472,18 +281,9 @@ export default function Home() {
             </div>
           )}
 
-          {status && (
-            <div style={statusType === 'success' ? styles.successBanner : statusType === 'error' ? styles.errorBanner : styles.statusBox}>
-              <p style={styles.status}>{status}</p>
-            </div>
-          )}
-
+          {status && <div style={statusType === 'success' ? styles.successBanner : statusType === 'error' ? styles.errorBanner : styles.statusBox}><p style={styles.status}>{status}</p></div>}
           <div style={styles.divider} />
-
-          <a href="/daftar" style={styles.daftarLink}>
-            👤+ Daftar Umat Baru
-          </a>
-
+          <a href="/daftar" style={styles.daftarLink}>👤+ Daftar Umat Baru</a>
           <div style={styles.footer}>
             <p style={styles.footerQuote}>"Appamādo amatapada"</p>
             <p style={styles.footerText}>Kewaspadaan adalah jalan menuju keabadian.</p>
