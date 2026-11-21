@@ -4,6 +4,8 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 export default function Home() {
   const [metode, setMetode] = useState('cari');
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [nama, setNama] = useState('');
   const [daftarUmat, setDaftarUmat] = useState([]);
   const [kegiatanHariIni, setKegiatanHariIni] = useState(null);
@@ -26,7 +28,33 @@ export default function Home() {
   const qrInputRef = useRef(null);
 
   useEffect(() => { muatDataAwal(); }, []);
+  
+useEffect(() => {
+  const handleBeforeInstallPrompt = (e) => {
+    e.preventDefault();
+    setDeferredPrompt(e);
+    setShowInstallBanner(true);
+  };
 
+  window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+  return () => {
+    window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  };
+}, []);
+
+const handleInstallClick = () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+      }
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    });
+  }
+};
   useEffect(() => {
     if (metode === 'scan' && !cameraActive && qrInputRef.current) {
       qrInputRef.current.focus();
@@ -201,6 +229,17 @@ export default function Home() {
                 <div style={styles.infoDetail}>Nikmati hari Anda dengan tenang.</div>
                 <div style={styles.infoJadwal}>🗓️ Jadwal Rutin: Minggu (08:00 - Puja Bakti) & Rabu (17:00 - Meditasi)</div>
               </>
+             {showInstallBanner && (
+  <div style={styles.installBanner}>
+    <div style={styles.installBannerContent}>
+      <span style={styles.installBannerText}>📲 Install aplikasi untuk akses lebih cepat</span>
+      <div style={styles.installBannerButtons}>
+        <button onClick={handleInstallClick} style={styles.installBtn}>Install</button>
+        <button onClick={() => setShowInstallBanner(false)} style={styles.skipBtn}>Nanti</button>
+      </div>
+    </div>
+  </div>
+)}
             )}
           </div>
 
@@ -295,6 +334,52 @@ export default function Home() {
 }
 
 const styles = {
+  installBanner: {
+  backgroundColor: '#E8F5E9',
+  border: '2px solid #5B7060',
+  borderRadius: '12px',
+  padding: '16px',
+  marginBottom: '20px',
+  boxShadow: '0 2px 8px rgba(91, 112, 96, 0.15)'
+},
+installBannerContent: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '12px',
+  flexWrap: 'wrap'
+},
+installBannerText: {
+  color: '#5B7060',
+  fontSize: '14px',
+  fontWeight: '600',
+  flex: 1,
+  minWidth: '200px'
+},
+installBannerButtons: {
+  display: 'flex',
+  gap: '8px'
+},
+installBtn: {
+  padding: '8px 16px',
+  backgroundColor: '#5B7060',
+  color: '#FFFFFF',
+  border: 'none',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  fontSize: '14px',
+  fontWeight: '600'
+},
+skipBtn: {
+  padding: '8px 16px',
+  backgroundColor: 'transparent',
+  color: '#5B7060',
+  border: '2px solid #5B7060',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  fontSize: '14px',
+  fontWeight: '600'
+},
   container: { minHeight: '100vh', backgroundColor: '#F4F7F5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, -apple-system, sans-serif' },
   card: { backgroundColor: '#FFFFFF', borderRadius: '16px', maxWidth: '520px', width: '100%', boxShadow: '0 4px 20px rgba(91, 112, 96, 0.15)', overflow: 'hidden' },
   header: { backgroundColor: '#5B7060', padding: '32px 24px', textAlign: 'center' },
