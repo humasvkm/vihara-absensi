@@ -20,9 +20,6 @@ export default function Home() {
   const [scanCount, setScanCount] = useState(0);
   const [lastScan, setLastScan] = useState(null);
   
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  
   // === TOMBOL RAHASIA LOGO ===
   const [tapCount, setTapCount] = useState(0);
   const [logoScale, setLogoScale] = useState(1);
@@ -37,19 +34,6 @@ export default function Home() {
   const tapTimeoutRef = useRef(null);
 
   useEffect(() => { muatDataAwal(); }, []);
-
-  // === PWA INSTALL BANNER ===
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallBanner(true);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
 
   // === CLEANUP TIMEOUT TOMBOL RAHASIA ===
   useEffect(() => {
@@ -69,19 +53,6 @@ export default function Home() {
       }, 300);
     }
   }, [tapCount]);
-
-  const handleInstallClick = () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the install prompt');
-        }
-        setDeferredPrompt(null);
-        setShowInstallBanner(false);
-      });
-    }
-  };
 
   // === FUNGSI TOMBOL RAHASIA (FIXED UNTUK MOBILE) ===
   const handleLogoTap = (e) => {
@@ -281,18 +252,6 @@ export default function Home() {
         </div>
 
         <div style={styles.body}>
-          {showInstallBanner && (
-            <div style={styles.installBanner}>
-              <div style={styles.installBannerContent}>
-                <span style={styles.installBannerText}>📲 Install aplikasi untuk akses lebih cepat</span>
-                <div style={styles.installBannerButtons}>
-                  <button onClick={handleInstallClick} style={styles.installBtn}>Install</button>
-                  <button onClick={() => setShowInstallBanner(false)} style={styles.skipBtn}>Nanti</button>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>📅 KEGIATAN HARI INI</div>
             {kegiatanHariIni && kegiatanHariIni.valid ? (
@@ -302,7 +261,7 @@ export default function Home() {
               </>
             ) : (
               <>
-                <div style={styles.infoNama}>Tidak Ada Kegiatan Rutin</div>
+                <div style={styles.infoNama}>🧘‍♂️ Tidak Ada Kegiatan Rutin</div>
                 <div style={styles.infoDetail}>Nikmati hari Anda dengan tenang.</div>
                 <div style={styles.infoJadwal}>🗓️ Jadwal Rutin: Minggu (08:00 - Puja Bakti) & Rabu (17:00 - Meditasi)</div>
               </>
@@ -463,11 +422,5 @@ const styles = {
   cameraHintLoading: { textAlign: 'center', color: '#8A9A90', fontSize: '14px', fontWeight: '600', marginTop: '12px', marginBottom: '12px', padding: '10px', backgroundColor: '#F0F4F1', borderRadius: '8px' },
   btnStopCamera: { width: '100%', padding: '14px', fontSize: '15px', fontWeight: '600', color: '#C0392B', backgroundColor: '#FFFFFF', border: '2px solid #C0392B', borderRadius: '10px', cursor: 'pointer' },
   manualSection: { marginTop: '20px' },
-  dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' },
-  installBanner: { backgroundColor: '#E8F5E9', border: '2px solid #5B7060', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(91, 112, 96, 0.15)' },
-  installBannerContent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
-  installBannerText: { color: '#5B7060', fontSize: '14px', fontWeight: '600', flex: 1, minWidth: '200px' },
-  installBannerButtons: { display: 'flex', gap: '8px' },
-  installBtn: { padding: '8px 16px', backgroundColor: '#5B7060', color: '#FFFFFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' },
-  skipBtn: { padding: '8px 16px', backgroundColor: 'transparent', color: '#5B7060', border: '2px solid #5B7060', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }
+  dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' }
 };
