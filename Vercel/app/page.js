@@ -23,11 +23,11 @@ export default function Home() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   
-  // === STATE BARU: TOMBOL RAHASIA LOGO ===
+  // === TOMBOL RAHASIA LOGO ===
   const [tapCount, setTapCount] = useState(0);
   const [logoScale, setLogoScale] = useState(1);
   const TAP_THRESHOLD = 5;
-  const TAP_TIMEOUT = 3000; // 3 detik
+  const TAP_TIMEOUT = 3000;
   
   const html5QrCodeRef = useRef(null);
   const isScanningRef = useRef(false);
@@ -38,7 +38,7 @@ export default function Home() {
 
   useEffect(() => { muatDataAwal(); }, []);
 
-  // === PWA: Listen untuk beforeinstallprompt ===
+  // === PWA INSTALL BANNER ===
   useEffect(() => {
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
@@ -51,12 +51,24 @@ export default function Home() {
     };
   }, []);
 
-  // Cleanup timeout saat unmount
+  // === CLEANUP TIMEOUT TOMBOL RAHASIA ===
   useEffect(() => {
     return () => {
       if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
     };
   }, []);
+
+  // === WATCH TAP COUNT UNTUK REDIRECT ===
+  useEffect(() => {
+    if (tapCount >= TAP_THRESHOLD) {
+      setTapCount(0);
+      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+      setLogoScale(1.3);
+      setTimeout(() => {
+        window.location.href = '/admin';
+      }, 300);
+    }
+  }, [tapCount]);
 
   const handleInstallClick = () => {
     if (deferredPrompt) {
@@ -71,12 +83,16 @@ export default function Home() {
     }
   };
 
-  // === FUNGSI TOMBOL RAHASIA LOGO ===
-  const handleLogoTap = () => {
+  // === FUNGSI TOMBOL RAHASIA (FIXED UNTUK MOBILE) ===
+  const handleLogoTap = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     const now = Date.now();
     const timeSinceLastTap = now - lastTapTimeRef.current;
     
-    // Jika jeda > 3 detik, reset counter
     if (timeSinceLastTap > TAP_TIMEOUT) {
       setTapCount(1);
     } else {
@@ -85,33 +101,15 @@ export default function Home() {
     
     lastTapTimeRef.current = now;
     
-    // Feedback visual: logo membesar sedikit
     setLogoScale(1.15);
     setTimeout(() => setLogoScale(1), 150);
     
-    // Clear timeout lama
     if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
     
-    // Set timeout untuk reset counter jika tidak ada tap lanjutan
     tapTimeoutRef.current = setTimeout(() => {
       setTapCount(0);
     }, TAP_TIMEOUT);
   };
-
-  // Watch tapCount untuk redirect
-  useEffect(() => {
-    if (tapCount >= TAP_THRESHOLD) {
-      // Reset dulu agar tidak trigger lagi
-      setTapCount(0);
-      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
-      
-      // Feedback: logo bergetar sebelum redirect
-      setLogoScale(1.3);
-      setTimeout(() => {
-        window.location.href = '/admin';
-      }, 300);
-    }
-  }, [tapCount]);
 
   useEffect(() => {
     if (metode === 'scan' && !cameraActive && qrInputRef.current) {
@@ -269,8 +267,14 @@ export default function Home() {
           <img 
             src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" 
             alt="Logo Dharma Chakra" 
-            style={{...styles.logo, transform: `scale(${logoScale})`, transition: 'transform 0.15s ease-out', cursor: 'pointer'}}
+            style={{
+              ...styles.logo, 
+              transform: `scale(${logoScale})`, 
+              transition: 'transform 0.15s ease-out', 
+              cursor: 'pointer'
+            }}
             onClick={handleLogoTap}
+            onTouchEnd={handleLogoTap}
           />
           <h1 style={styles.headerTitle}>Absensi Kehadiran</h1>
           <p style={styles.headerSubtitle}>Vihara Karuna Mukti, Bandung</p>
@@ -399,7 +403,17 @@ const styles = {
   container: { minHeight: '100vh', backgroundColor: '#F4F7F5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, -apple-system, sans-serif' },
   card: { backgroundColor: '#FFFFFF', borderRadius: '16px', maxWidth: '520px', width: '100%', boxShadow: '0 4px 20px rgba(91, 112, 96, 0.15)', overflow: 'hidden' },
   header: { backgroundColor: '#5B7060', padding: '32px 24px', textAlign: 'center' },
-  logo: { width: '80px', height: '80px', marginBottom: '16px', filter: 'brightness(0) invert(1)' },
+  logo: { 
+    width: '80px', 
+    height: '80px', 
+    marginBottom: '16px', 
+    filter: 'brightness(0) invert(1)',
+    touchAction: 'manipulation',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    WebkitTouchCallout: 'none'
+  },
   headerTitle: { color: '#FFFFFF', fontSize: '28px', fontWeight: '700', margin: '0 0 8px 0' },
   headerSubtitle: { color: '#D4E0D8', fontSize: '15px', margin: 0, fontStyle: 'italic' },
   body: { padding: '24px' },
