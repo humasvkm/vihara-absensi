@@ -20,14 +20,21 @@ export default function Home() {
   const [scanCount, setScanCount] = useState(0);
   const [lastScan, setLastScan] = useState(null);
   
-  // === STATE BARU UNTUK PWA INSTALL BANNER ===
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  
+  // === STATE BARU: TOMBOL RAHASIA LOGO ===
+  const [tapCount, setTapCount] = useState(0);
+  const [logoScale, setLogoScale] = useState(1);
+  const TAP_THRESHOLD = 5;
+  const TAP_TIMEOUT = 3000; // 3 detik
   
   const html5QrCodeRef = useRef(null);
   const isScanningRef = useRef(false);
   const namaInputRef = useRef(null);
   const qrInputRef = useRef(null);
+  const lastTapTimeRef = useRef(0);
+  const tapTimeoutRef = useRef(null);
 
   useEffect(() => { muatDataAwal(); }, []);
 
@@ -38,11 +45,16 @@ export default function Home() {
       setDeferredPrompt(e);
       setShowInstallBanner(true);
     };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  // Cleanup timeout saat unmount
+  useEffect(() => {
+    return () => {
+      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
     };
   }, []);
 
@@ -58,6 +70,48 @@ export default function Home() {
       });
     }
   };
+
+  // === FUNGSI TOMBOL RAHASIA LOGO ===
+  const handleLogoTap = () => {
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTimeRef.current;
+    
+    // Jika jeda > 3 detik, reset counter
+    if (timeSinceLastTap > TAP_TIMEOUT) {
+      setTapCount(1);
+    } else {
+      setTapCount(prev => prev + 1);
+    }
+    
+    lastTapTimeRef.current = now;
+    
+    // Feedback visual: logo membesar sedikit
+    setLogoScale(1.15);
+    setTimeout(() => setLogoScale(1), 150);
+    
+    // Clear timeout lama
+    if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+    
+    // Set timeout untuk reset counter jika tidak ada tap lanjutan
+    tapTimeoutRef.current = setTimeout(() => {
+      setTapCount(0);
+    }, TAP_TIMEOUT);
+  };
+
+  // Watch tapCount untuk redirect
+  useEffect(() => {
+    if (tapCount >= TAP_THRESHOLD) {
+      // Reset dulu agar tidak trigger lagi
+      setTapCount(0);
+      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+      
+      // Feedback: logo bergetar sebelum redirect
+      setLogoScale(1.3);
+      setTimeout(() => {
+        window.location.href = '/admin';
+      }, 300);
+    }
+  }, [tapCount]);
 
   useEffect(() => {
     if (metode === 'scan' && !cameraActive && qrInputRef.current) {
@@ -212,13 +266,17 @@ export default function Home() {
     <main style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <img src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" alt="Logo Dharma Chakra" style={styles.logo} />
+          <img 
+            src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" 
+            alt="Logo Dharma Chakra" 
+            style={{...styles.logo, transform: `scale(${logoScale})`, transition: 'transform 0.15s ease-out', cursor: 'pointer'}}
+            onClick={handleLogoTap}
+          />
           <h1 style={styles.headerTitle}>Absensi Kehadiran</h1>
           <p style={styles.headerSubtitle}>Vihara Karuna Mukti, Bandung</p>
         </div>
 
         <div style={styles.body}>
-          {/* === BANNER INSTALL PWA === */}
           {showInstallBanner && (
             <div style={styles.installBanner}>
               <div style={styles.installBannerContent}>
@@ -392,52 +450,10 @@ const styles = {
   btnStopCamera: { width: '100%', padding: '14px', fontSize: '15px', fontWeight: '600', color: '#C0392B', backgroundColor: '#FFFFFF', border: '2px solid #C0392B', borderRadius: '10px', cursor: 'pointer' },
   manualSection: { marginTop: '20px' },
   dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' },
-  
-  // === STYLES BARU UNTUK PWA INSTALL BANNER ===
-  installBanner: {
-    backgroundColor: '#E8F5E9',
-    border: '2px solid #5B7060',
-    borderRadius: '12px',
-    padding: '16px',
-    marginBottom: '20px',
-    boxShadow: '0 2px 8px rgba(91, 112, 96, 0.15)'
-  },
-  installBannerContent: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '12px',
-    flexWrap: 'wrap'
-  },
-  installBannerText: {
-    color: '#5B7060',
-    fontSize: '14px',
-    fontWeight: '600',
-    flex: 1,
-    minWidth: '200px'
-  },
-  installBannerButtons: {
-    display: 'flex',
-    gap: '8px'
-  },
-  installBtn: {
-    padding: '8px 16px',
-    backgroundColor: '#5B7060',
-    color: '#FFFFFF',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '600'
-  },
-  skipBtn: {
-    padding: '8px 16px',
-    backgroundColor: 'transparent',
-    color: '#5B7060',
-    border: '2px solid #5B7060',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '600'
-  }
+  installBanner: { backgroundColor: '#E8F5E9', border: '2px solid #5B7060', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(91, 112, 96, 0.15)' },
+  installBannerContent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' },
+  installBannerText: { color: '#5B7060', fontSize: '14px', fontWeight: '600', flex: 1, minWidth: '200px' },
+  installBannerButtons: { display: 'flex', gap: '8px' },
+  installBtn: { padding: '8px 16px', backgroundColor: '#5B7060', color: '#FFFFFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' },
+  skipBtn: { padding: '8px 16px', backgroundColor: 'transparent', color: '#5B7060', border: '2px solid #5B7060', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }
 };
