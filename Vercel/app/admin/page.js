@@ -33,7 +33,7 @@ export default function AdminPage() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // === STATE BARU: GEOFENCING ===
+  // === STATE GEOFENCING ===
   const [geoConfig, setGeoConfig] = useState({ enabled: false, lat: -6.926116650622637, lng: 107.60863387231466, radius: 100 });
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [geoMsg, setGeoMsg] = useState('');
@@ -98,7 +98,7 @@ export default function AdminPage() {
       const data = await res.json();
       setAbsensiHariIni(Array.isArray(parseResponse(data)) ? parseResponse(data) : []);
       setLastRefresh(new Date());
-    } catch (error) { console.error('❌ Error muatAbsensiHariIni:', error); setAbsensiHariIni([]); } 
+    } catch (error) { console.error('Error muatAbsensiHariIni:', error); setAbsensiHariIni([]); } 
     finally { setLoadingAbsensi(false); }
   };
 
@@ -131,11 +131,8 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setGeofencingConfig', data: geoConfig }) });
       const data = await res.json();
-      if (parseSuccess(data)) {
-        setGeoMsg('✅ Konfigurasi Geofencing berhasil disimpan!');
-      } else {
-        setGeoMsg('❌ Gagal: ' + parseMessage(data));
-      }
+      if (parseSuccess(data)) setGeoMsg('✅ Konfigurasi Geofencing berhasil disimpan!');
+      else setGeoMsg('❌ Gagal: ' + parseMessage(data));
     } catch (error) { setGeoMsg('❌ Gagal terhubung ke server.'); }
     finally { setLoadingGeo(false); }
   };
@@ -148,11 +145,7 @@ export default function AdminPage() {
     setGeoMsg('📍 Sedang mengambil lokasi Anda...');
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setGeoConfig(prev => ({ 
-          ...prev, 
-          lat: position.coords.latitude, 
-          lng: position.coords.longitude 
-        }));
+        setGeoConfig(prev => ({ ...prev, lat: position.coords.latitude, lng: position.coords.longitude }));
         setGeoMsg('✅ Lokasi berhasil diambil! Silakan klik "Simpan Konfigurasi".');
       },
       (error) => {
@@ -390,7 +383,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* === TAB BARU: GEOFENCING === */}
+        {/* === TAB GEOFENCING === */}
         {activeTab === 'geofencing' && (
           <div>
             <section style={styles.section}>
@@ -428,12 +421,12 @@ export default function AdminPage() {
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Radius (Meter)</label>
                     <input type="number" value={geoConfig.radius} onChange={(e) => setGeoConfig({...geoConfig, radius: parseInt(e.target.value) || 0})} style={styles.input} />
-                  </div3>
+                  </div>
                 </div>
 
-                <div style={{display: 'flex', gap: '12px', marginTop: '8px'}}>
-                  <button type="button" onClick={gunakanLokasiSaya} style={styles.buttonSecondary}>📍 Gunakan Lokasi Saya Saat Ini</button>
-                  <button type="button" onClick={simpanGeoConfig} disabled={loadingGeo} style={loadingGeo ? styles.buttonDisabled : styles.button}>
+                <div style={{display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap'}}>
+                  <button type="button" onClick={gunakanLokasiSaya} style={{...styles.buttonSecondary, width: 'auto', flex: 1, minWidth: '200px'}}>📍 Gunakan Lokasi Saya Saat Ini</button>
+                  <button type="button" onClick={simpanGeoConfig} disabled={loadingGeo} style={{...styles.button, width: 'auto', flex: 1, minWidth: '200px', marginTop: 0}}>
                     {loadingGeo ? 'Menyimpan...' : '💾 Simpan Konfigurasi'}
                   </button>
                 </div>
@@ -459,11 +452,11 @@ export default function AdminPage() {
                   <li>Klik <strong>"Gunakan Lokasi Saya Saat Ini"</strong> (pastikan Anda sedang di Vihara untuk akurasi maksimal).</li>
                   <li>Klik <strong>"Simpan Konfigurasi"</strong>.</li>
                   <li>Buka halaman absensi umat (<code>/</code>) di HP lain atau mode Incognito.</li>
-                  <li>Coba absen. Jika Anda di luar radius, tombol absen akan terkunci 🔒 dan muncul peringatan.</li>
-                  <li>Jika testing selesai, <strong>jangan lupa centang ulang ke NONAKTIF</strong> agar umat bisa absen normal.</li>
+                  <li>Coba absen. Jika di luar radius, tombol absen akan terkunci 🔒 dan muncul peringatan.</li>
+                  <li>Setelah testing selesai, <strong>jangan lupa hilangkan centang</strong> agar umat bisa absen normal.</li>
                 </ol>
               </div>
-            </section7>
+            </section>
           </div>
         )}
 
