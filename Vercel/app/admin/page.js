@@ -38,7 +38,7 @@ export default function AdminPage() {
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [geoMsg, setGeoMsg] = useState('');
 
-  const ADMIN_PIN = '123456';
+  const ADMIN_PIN = '4444';
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const intervalRef = useRef(null);
 
@@ -224,7 +224,7 @@ export default function AdminPage() {
             {pinError && <p style={styles.error}>{pinError}</p>}
             <button type="submit" style={styles.button}>Masuk</button>
           </form>
-          <p style={styles.hint}>PIN default: 123456</p>
+   
           <a href="/" style={styles.link}>← Kembali ke Halaman Absensi</a>
         </div>
       </main>
