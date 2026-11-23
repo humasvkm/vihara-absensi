@@ -17,6 +17,7 @@ export default function Home() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraDebug, setCameraDebug] = useState(''); // === BARU: log diagnostik ===
   const [scanCount, setScanCount] = useState(0);
   const [lastScan, setLastScan] = useState(null);
   
@@ -98,7 +99,6 @@ export default function Home() {
     }, delay);
   };
 
-  // === VALIDASI LOKASI (dipanggil saat klik HADIR atau setelah QR discan) ===
   const validasiLokasi = async () => {
     if (!geoConfig || !geoConfig.enabled) return { allowed: true };
     
@@ -221,7 +221,6 @@ export default function Home() {
     setStatus('Memverifikasi... 🙏'); 
     setStatusType('');
 
-    // === VALIDASI LOKASI (hanya jika geofencing aktif) ===
     let userLat = null, userLng = null;
     
     if (geoConfig && geoConfig.enabled) {
@@ -275,39 +274,74 @@ export default function Home() {
     }
   };
 
+  // === FUNGSI KAMERA DENGAN DIAGNOSTIK LENGKAP ===
   const startCameraInternal = async () => {
+    const logs = [];
+    const addLog = (msg) => { logs.push(msg); setCameraDebug(logs.join('\n')); };
+
+    addLog('🔍 Mulai inisialisasi kamera...');
+    addLog('· Library Html5Qrcode: ' + (typeof Html5Qrcode !== 'undefined' ? '✅ ada' : '❌ TIDAK ADA'));
+    addLog('· navigator.mediaDevices: ' + (navigator.mediaDevices ? '✅ ada' : '❌ tidak ada'));
+    addLog('· Secure context (HTTPS): ' + (window.isSecureContext ? '✅ ya' : '❌ TIDAK'));
+
     setCameraError('');
     setCameraReady(false);
+
+    if (typeof Html5Qrcode === 'undefined') {
+      setCameraError('❌ Library QR scanner gagal dimuat. Refresh halaman (Ctrl+Shift+R) atau coba Chrome.');
+      setCameraActive(false);
+      addLog('❌ FATAL: Html5Qrcode undefined');
+      return;
+    }
+
+    // Cek dukungan kamera browser
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        addLog('🎦 Cek dukungan kamera via mediaDevices...');
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasCamera = devices.some(d => d.kind === 'videoinput');
+        addLog('· Kamera terdeteksi: ' + (hasCamera ? '✅ ya (' + devices.filter(d => d.kind === 'videoinput').length + ' kamera)' : '❌ TIDAK ADA'));
+        if (!hasCamera) {
+          setCameraError('❌ Tidak ada kamera yang terdeteksi di device ini.');
+          setCameraActive(false);
+          return;
+        }
+      } catch (e) {
+        addLog('⚠️ enumerateDevices error: ' + e.message);
+      }
+    }
+
+    const readerElement = document.getElementById('qr-reader');
+    addLog('· Elemen #qr-reader: ' + (readerElement ? '✅ ditemukan' : '❌ TIDAK ADA'));
+    if (!readerElement) { 
+      setCameraError('Elemen kamera belum siap. Silakan coba lagi.'); 
+      setCameraActive(false); 
+      return; 
+    }
+
+    if (html5QrCodeRef.current) {
+      addLog('· Membersihkan instance lama...');
+      try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
+      html5QrCodeRef.current = null;
+    }
+
+    addLog('🔄 Mencoba kamera belakang (exact)...');
     try {
-      const readerElement = document.getElementById('qr-reader');
-      if (!readerElement) { 
-        setCameraError('Elemen kamera belum siap.'); 
-        setCameraActive(false); 
-        return; 
-      }
-      
-      // Bersihkan elemen sebelumnya
-      if (html5QrCodeRef.current) {
-        try { 
-          await html5QrCodeRef.current.stop(); 
-          html5QrCodeRef.current.clear(); 
-        } catch (e) {}
-        html5QrCodeRef.current = null;
-      }
-      
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
-      
       await html5QrCode.start(
         { facingMode: { exact: 'environment' } },
         { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
-        (decodedText) => { processQrScan(decodedText, 'camera'); },
+        (decodedText) => { addLog('✅ QR terdeteksi: ' + decodedText); processQrScan(decodedText, 'camera'); },
         () => {}
       );
+      addLog('✅ Kamera belakang AKTIF');
       setCameraReady(true);
       setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); 
       setStatusType('');
     } catch (err) {
+      addLog('❌ Exact gagal: ' + (err.name || '?') + ' - ' + (err.message || ''));
+      addLog('🔄 Fallback: kamera tanpa exact...');
       try {
         const html5QrCode = new Html5Qrcode('qr-reader');
         html5QrCodeRef.current = html5QrCode;
@@ -317,11 +351,14 @@ export default function Home() {
           (decodedText) => { processQrScan(decodedText, 'camera'); },
           () => {}
         );
+        addLog('✅ Fallback AKTIF');
         setCameraReady(true);
         setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); 
         setStatusType('');
       } catch (err2) {
-        setCameraError('Tidak dapat mengakses kamera. Pastikan izin kamera diberikan. (' + err2.message + ')');
+        addLog('❌ Fallback juga gagal: ' + (err2.name || '?') + ' - ' + (err2.message || ''));
+        const msg = 'Tidak dapat mengakses kamera: ' + (err2.name || 'Unknown') + ' — ' + (err2.message || 'Cek izin kamera di pengaturan browser.');
+        setCameraError(msg);
         setCameraActive(false); 
         setCameraReady(false);
       }
@@ -330,16 +367,13 @@ export default function Home() {
 
   const stopCameraInternal = async () => {
     if (html5QrCodeRef.current && cameraReady) {
-      try { 
-        await html5QrCodeRef.current.stop(); 
-        html5QrCodeRef.current.clear(); 
-      } catch (err) {}
+      try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (err) {}
       html5QrCodeRef.current = null;
     }
     setCameraReady(false);
   };
 
-  const handleMulaiScan = () => { setCameraError(''); setCameraActive(true); };
+  const handleMulaiScan = () => { setCameraError(''); setCameraDebug(''); setCameraActive(true); };
   const handleStopScan = () => { stopCameraInternal(); setCameraActive(false); };
 
   const handleQrManualSubmit = async (e) => {
@@ -447,6 +481,13 @@ export default function Home() {
                   <button onClick={handleStopScan} style={styles.btnStopCamera}>⏹️ Hentikan Kamera</button>
                 </div>
               )}
+              {/* === DIAGNOSTIK KAMERA (hanya tampil saat error/debug) === */}
+              {cameraDebug && (
+                <div style={styles.debugBox}>
+                  <div style={styles.debugTitle}>🔧 Diagnostik Kamera</div>
+                  <pre style={styles.debugText}>{cameraDebug}</pre>
+                </div>
+              )}
               {!cameraActive && (
                 <div style={styles.manualSection}>
                   <div style={styles.dividerText}>— atau masukkan ID manual —</div>
@@ -529,5 +570,9 @@ const styles = {
   cameraHintLoading: { textAlign: 'center', color: '#8A9A90', fontSize: '14px', fontWeight: '600', marginTop: '12px', marginBottom: '12px', padding: '10px', backgroundColor: '#F0F4F1', borderRadius: '8px' },
   btnStopCamera: { width: '100%', padding: '14px', fontSize: '15px', fontWeight: '600', color: '#C0392B', backgroundColor: '#FFFFFF', border: '2px solid #C0392B', borderRadius: '10px', cursor: 'pointer' },
   manualSection: { marginTop: '20px' },
-  dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' }
+  dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' },
+  // === STYLE BARU: DIAGNOSTIK ===
+  debugBox: { backgroundColor: '#263238', borderRadius: '10px', padding: '14px', marginTop: '16px', border: '1px solid #546E7A' },
+  debugTitle: { color: '#FFCC80', fontSize: '13px', fontWeight: '700', marginBottom: '8px' },
+  debugText: { color: '#B0BEC5', fontSize: '11px', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6', fontFamily: 'monospace' }
 };
