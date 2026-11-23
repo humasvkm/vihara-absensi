@@ -208,7 +208,7 @@ export default function AdminPage() {
 
   const formatWaktu = (date) => {
     if (!date) return '-';
-    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return date.toLocaleTimeString('id-ID', { hour: '2-', minute: '2-', second: '2-' });
   };
 
   if (!isAuthenticated) {
@@ -220,7 +220,7 @@ export default function AdminPage() {
           <p style={styles.subtitle}>Vihara Karuna Mukti, Bandung</p>
           <form onSubmit={handleLogin} style={styles.form}>
             <label style={styles.label}>🔐 Masukkan PIN Admin</label>
-            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="6 digit PIN" maxLength="6" style={styles.input} autoFocus />
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="4 digit PIN" maxLength="4" style={styles.input} autoFocus />
             {pinError && <p style={styles.error}>{pinError}</p>}
             <button type="submit" style={styles.button}>Masuk</button>
           </form>
