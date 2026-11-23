@@ -20,18 +20,12 @@ export default function Home() {
   const [scanCount, setScanCount] = useState(0);
   const [lastScan, setLastScan] = useState(null);
   
-  // === TOMBOL RAHASIA LOGO ===
   const [tapCount, setTapCount] = useState(0);
   const [logoScale, setLogoScale] = useState(1);
   const TAP_THRESHOLD = 5;
   const TAP_TIMEOUT = 3000;
   
-  // === GEOFENCING STATE ===
   const [geoConfig, setGeoConfig] = useState(null);
-  const [userLocation, setUserLocation] = useState(null);
-  const [geoStatus, setGeoStatus] = useState('idle'); // idle, requesting, checking, allowed, denied, error
-  const [geoMessage, setGeoMessage] = useState('');
-  const [geoDistance, setGeoDistance] = useState(null);
   
   const html5QrCodeRef = useRef(null);
   const isScanningRef = useRef(false);
@@ -45,22 +39,18 @@ export default function Home() {
     muatGeoConfig();
   }, []);
 
-  // Cleanup timeout tombol rahasia
   useEffect(() => {
     return () => {
       if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
     };
   }, []);
 
-  // Watch tap count untuk redirect admin
   useEffect(() => {
     if (tapCount >= TAP_THRESHOLD) {
       setTapCount(0);
       if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
       setLogoScale(1.3);
-      setTimeout(() => {
-        window.location.href = '/admin';
-      }, 300);
+      setTimeout(() => { window.location.href = '/admin'; }, 300);
     }
   }, [tapCount]);
 
@@ -97,63 +87,6 @@ export default function Home() {
     tapTimeoutRef.current = setTimeout(() => setTapCount(0), TAP_TIMEOUT);
   };
 
-  // === GEOFENCING: Minta Izin Lokasi ===
-  const requestLocation = () => {
-    if (!navigator.geolocation) {
-      setGeoStatus('error');
-      setGeoMessage('❌ Browser tidak mendukung geolokasi.');
-      return;
-    }
-
-    setGeoStatus('requesting');
-    setGeoMessage('📍 Meminta izin lokasi...');
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const accuracy = Math.round(position.coords.accuracy);
-        setUserLocation({ lat, lng, accuracy });
-        
-        // Validasi ke backend
-        setGeoStatus('checking');
-        setGeoMessage('📡 Memvalidasi lokasi...');
-        
-        try {
-          const res = await fetch('/api/proxy', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ action: 'cekGeofencing', data: { userLat: lat, userLng: lng } }) 
-          });
-          const data = await res.json();
-          
-          if (data.allowed) {
-            setGeoStatus('allowed');
-            setGeoMessage(data.message);
-            setGeoDistance(data.jarak);
-          } else {
-            setGeoStatus('denied');
-            setGeoMessage(data.message);
-            setGeoDistance(data.jarak);
-          }
-        } catch (error) {
-          setGeoStatus('error');
-          setGeoMessage('❌ Gagal memvalidasi lokasi. Coba lagi.');
-        }
-      },
-      (error) => {
-        let msg = '❌ ';
-        if (error.code === 1) msg += 'Izin lokasi ditolak. Aktifkan izin lokasi di pengaturan browser.';
-        else if (error.code === 2) msg += 'Lokasi tidak tersedia. Pastikan GPS aktif.';
-        else if (error.code === 3) msg += 'Timeout. Coba lagi.';
-        else msg += 'Error tidak diketahui.';
-        setGeoStatus('error');
-        setGeoMessage(msg);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  };
-
   const umatTersaring = nama.length >= 2
     ? daftarUmat.filter(u => u.nama.toLowerCase().includes(nama.toLowerCase())).slice(0, 10)
     : [];
@@ -165,24 +98,77 @@ export default function Home() {
     }, delay);
   };
 
-  // Cek apakah absen diblokir oleh geofencing
-  const isGeoBlocked = () => {
-    return geoConfig && geoConfig.enabled && geoStatus !== 'allowed';
+  // === VALIDASI LOKASI (dipanggil saat klik HADIR) ===
+  const validasiLokasi = async () => {
+    if (!geoConfig || !geoConfig.enabled) return { allowed: true };
+    
+    if (!navigator.geolocation) {
+      return { allowed: false, message: 'Browser tidak mendukung geolokasi. Silakan hubungi panitia.' };
+    }
+    
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { 
+          enableHighAccuracy: true, 
+          timeout: 15000,
+          maximumAge: 0 
+        });
+      });
+      
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+      
+      const geoRes = await fetch('/api/proxy', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ action: 'cekGeofencing', data: { userLat, userLng } }) 
+      });
+      const geoData = await geoRes.json();
+      
+      return { allowed: geoData.allowed, message: geoData.message, lat: userLat, lng: userLng };
+    } catch (geoError) {
+      let msg = 'Gagal memvalidasi lokasi. ';
+      if (geoError.code === 1) msg += 'Izin lokasi ditolak. Aktifkan izin lokasi di pengaturan browser.';
+      else if (geoError.code === 2) msg += 'Lokasi tidak tersedia. Pastikan GPS aktif.';
+      else if (geoError.code === 3) msg += 'Timeout. Coba lagi.';
+      else msg += 'Silakan coba lagi.';
+      return { allowed: false, message: msg };
+    }
   };
 
   const handleHadir = async (umat) => {
-    // Validasi geofencing di frontend
-    if (isGeoBlocked()) {
-      setStatus('❌ Izinkan lokasi terlebih dahulu untuk absen.');
-      setStatusType('error');
-      return;
+    if (!kegiatanHariIni || !kegiatanHariIni.valid) { 
+      setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); 
+      setStatusType('error'); 
+      return; 
     }
-    
-    if (!kegiatanHariIni || !kegiatanHariIni.valid) { setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); setStatusType('error'); return; }
     if (hadirSet.has(umat.id)) return;
 
-    setLoadingId(umat.id); setStatus(''); setStatusType('');
+    setLoadingId(umat.id); 
+    setStatus(''); 
+    setStatusType('');
 
+    // === VALIDASI LOKASI DI BACKGROUND ===
+    let userLat = null, userLng = null;
+    
+    if (geoConfig && geoConfig.enabled) {
+      setStatus('📍 Memvalidasi lokasi...');
+      setStatusType('');
+      
+      const geoResult = await validasiLokasi();
+      
+      if (!geoResult.allowed) {
+        setStatus('❌ ' + geoResult.message);
+        setStatusType('error');
+        setLoadingId(null);
+        return;
+      }
+      
+      userLat = geoResult.lat;
+      userLng = geoResult.lng;
+    }
+
+    // === LANJUTKAN ABSEN NORMAL ===
     try {
       const body = { 
         action: 'simpanAbsensi', 
@@ -193,10 +179,9 @@ export default function Home() {
         } 
       };
       
-      // Kirim lokasi jika ada
-      if (userLocation) {
-        body.data.userLat = userLocation.lat;
-        body.data.userLng = userLocation.lng;
+      if (userLat !== null) {
+        body.data.userLat = userLat;
+        body.data.userLng = userLng;
       }
       
       const response = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -204,47 +189,63 @@ export default function Home() {
 
       if (result.success) {
         setHadirSet(prev => new Set(prev).add(umat.id));
-        setStatus('✅ ' + result.message); setStatusType('success');
+        setStatus('✅ ' + result.message); 
+        setStatusType('success');
         resetSetelahSukses();
       } else {
-        if (result.geofencingBlocked) {
-          setGeoStatus('denied');
-          setGeoMessage(result.message);
-          setStatus('❌ Absen diblokir: Anda di luar area Vihara.');
-          setStatusType('error');
-        } else if (result.message && result.message.toLowerCase().includes('sudah')) {
+        if (result.message && result.message.toLowerCase().includes('sudah')) {
           setHadirSet(prev => new Set(prev).add(umat.id));
-          setStatus('❌ ' + result.message); setStatusType('error');
-        } else {
-          setStatus('❌ ' + result.message); setStatusType('error');
         }
+        setStatus('❌ ' + result.message); 
+        setStatusType('error');
         setLoadingId(null);
       }
-    } catch (error) { setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); setStatusType('error'); setLoadingId(null); }
+    } catch (error) { 
+      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); 
+      setStatusType('error'); 
+      setLoadingId(null); 
+    }
   };
 
   const processQrScan = async (idUmatScan, source = 'camera') => {
     if (isScanningRef.current) return;
     isScanningRef.current = true;
 
-    // Validasi geofencing di frontend
-    if (isGeoBlocked()) {
-      setStatus('❌ Izinkan lokasi terlebih dahulu untuk absen.');
-      setStatusType('error');
-      isScanningRef.current = false;
-      return;
+    if (!idUmatScan || !idUmatScan.trim()) { isScanningRef.current = false; return; }
+    if (!kegiatanHariIni || !kegiatanHariIni.valid) { 
+      setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); 
+      setStatusType('error'); 
+      isScanningRef.current = false; 
+      return; 
     }
 
-    if (!idUmatScan || !idUmatScan.trim()) { isScanningRef.current = false; return; }
-    if (!kegiatanHariIni || !kegiatanHariIni.valid) { setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); setStatusType('error'); isScanningRef.current = false; return; }
+    setLoadingQr(true); 
+    setStatus('Memverifikasi... 🙏'); 
+    setStatusType('');
 
-    setLoadingQr(true); setStatus('Memverifikasi... 🙏'); setStatusType('');
+    // === VALIDASI LOKASI DI BACKGROUND ===
+    let userLat = null, userLng = null;
+    
+    if (geoConfig && geoConfig.enabled) {
+      const geoResult = await validasiLokasi();
+      
+      if (!geoResult.allowed) {
+        setStatus('❌ ' + geoResult.message);
+        setStatusType('error');
+        setLoadingQr(false);
+        isScanningRef.current = false;
+        return;
+      }
+      
+      userLat = geoResult.lat;
+      userLng = geoResult.lng;
+    }
 
     try {
       const body = { action: 'prosesCheckinQR', data: { idUmatScan: idUmatScan.trim() } };
-      if (userLocation) {
-        body.data.userLat = userLocation.lat;
-        body.data.userLng = userLocation.lng;
+      if (userLat !== null) {
+        body.data.userLat = userLat;
+        body.data.userLng = userLng;
       }
       
       const response = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -253,28 +254,27 @@ export default function Home() {
       if (result.success) {
         setScanCount(prev => prev + 1);
         setLastScan({ nama: result.nama, id: idUmatScan.trim(), time: new Date() });
-        setStatus('✅ ' + result.message); setStatusType('success');
+        setStatus('✅ ' + result.message); 
+        setStatusType('success');
         setQrInput('');
         setTimeout(() => {
-          setStatus(''); setStatusType('');
+          setStatus(''); 
+          setStatusType('');
           isScanningRef.current = false;
           if (source === 'manual' && qrInputRef.current) qrInputRef.current.focus();
         }, 500);
       } else {
-        if (result.geofencingBlocked) {
-          setGeoStatus('denied');
-          setGeoMessage(result.message);
-          setStatus('❌ Absen diblokir: Anda di luar area Vihara.');
-        } else {
-          setStatus('❌ ' + result.message);
-        }
+        setStatus('❌ ' + result.message); 
         setStatusType('error');
         setTimeout(() => { isScanningRef.current = false; }, 1000);
       }
     } catch (error) {
-      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); setStatusType('error');
+      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); 
+      setStatusType('error');
       setTimeout(() => { isScanningRef.current = false; }, 1000);
-    } finally { setLoadingQr(false); }
+    } finally { 
+      setLoadingQr(false); 
+    }
   };
 
   const startCameraInternal = async () => {
@@ -291,7 +291,8 @@ export default function Home() {
         () => {}
       );
       setCameraReady(true);
-      setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); setStatusType('');
+      setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); 
+      setStatusType('');
     } catch (err) {
       try {
         const html5QrCode = new Html5Qrcode('qr-reader');
@@ -303,10 +304,12 @@ export default function Home() {
           () => {}
         );
         setCameraReady(true);
-        setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); setStatusType('');
+        setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); 
+        setStatusType('');
       } catch (err2) {
         setCameraError('Tidak dapat mengakses kamera. (' + err2.message + ')');
-        setCameraActive(false); setCameraReady(false);
+        setCameraActive(false); 
+        setCameraReady(false);
       }
     }
   };
@@ -349,41 +352,6 @@ export default function Home() {
         </div>
 
         <div style={styles.body}>
-          {/* === BANNER GEOFENCING === */}
-          {geoConfig && geoConfig.enabled && (
-            <div style={
-              geoStatus === 'allowed' ? styles.geoBannerAllowed :
-              geoStatus === 'denied' ? styles.geoBannerDenied :
-              geoStatus === 'error' ? styles.geoBannerError :
-              styles.geoBannerInfo
-            }>
-              <div style={styles.geoBannerHeader}>
-                <span style={styles.geoBannerIcon}>
-                  {geoStatus === 'allowed' ? '✅' : geoStatus === 'denied' ? '❌' : geoStatus === 'error' ? '⚠️' : '📍'}
-                </span>
-                <span style={styles.geoBannerTitle}>
-                  {geoStatus === 'idle' ? 'Geofencing Aktif' : 
-                   geoStatus === 'requesting' ? 'Meminta Izin Lokasi...' :
-                   geoStatus === 'checking' ? 'Memvalidasi Lokasi...' :
-                   geoStatus === 'allowed' ? 'Lokasi Terverifikasi' :
-                   geoStatus === 'denied' ? 'Lokasi Di Luar Area' : 'Error Lokasi'}
-                </span>
-              </div>
-              <p style={styles.geoBannerMessage}>{geoMessage || 'Izinkan lokasi untuk melakukan absensi.'}</p>
-              {geoStatus !== 'allowed' && geoStatus !== 'requesting' && geoStatus !== 'checking' && (
-                <button onClick={requestLocation} style={styles.geoBtnAllow}>
-                  {geoStatus === 'idle' ? '📍 Izinkan Lokasi' : '🔄 Coba Lagi'}
-                </button>
-              )}
-              {geoStatus === 'denied' && (
-                <p style={styles.geoDeniedHint}>
-                  💡 Silakan datang ke Vihara untuk melakukan absensi. Jarak Anda: {geoDistance}m dari Vihara.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Info kegiatan */}
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>📅 KEGIATAN HARI INI</div>
             {kegiatanHariIni && kegiatanHariIni.valid ? (
@@ -413,7 +381,6 @@ export default function Home() {
                   {umatTersaring.map((u) => {
                     const sudahHadir = hadirSet.has(u.id);
                     const isLoading = loadingId === u.id;
-                    const blocked = isGeoBlocked();
                     return (
                       <div key={u.id} style={sudahHadir ? styles.resultCardHadir : styles.resultCard}>
                         <div style={styles.resultInfo}>
@@ -422,8 +389,6 @@ export default function Home() {
                         </div>
                         {sudahHadir ? (
                           <span style={styles.badgeHadir}>✓ HADIR</span>
-                        ) : blocked ? (
-                          <span style={styles.badgeBlocked} title="Izinkan lokasi untuk absen">🔒</span>
                         ) : (
                           <button onClick={() => handleHadir(u)} disabled={isLoading} style={isLoading ? styles.btnHadirDisabled : styles.btnHadir}>
                             {isLoading ? '...' : 'HADIR'}
@@ -471,8 +436,8 @@ export default function Home() {
                   <form onSubmit={handleQrManualSubmit}>
                     <input ref={qrInputRef} type="text" value={qrInput} onChange={(e) => { setQrInput(e.target.value); setStatus(''); setStatusType(''); }} placeholder="Contoh: VKM-001" style={styles.input} />
                     <p style={styles.hint}>Tekan Enter untuk submit otomatis (cocok untuk scanner USB)</p>
-                    <button type="submit" disabled={loadingQr || !qrInput.trim() || isGeoBlocked()} style={(loadingQr || !qrInput.trim() || isGeoBlocked()) ? styles.buttonDisabled : styles.button}>
-                      {loadingQr ? 'Memverifikasi...' : isGeoBlocked() ? '🔒 Izinkan Lokasi Dulu' : '✨ Check-in via ID'}
+                    <button type="submit" disabled={loadingQr || !qrInput.trim()} style={(loadingQr || !qrInput.trim()) ? styles.buttonDisabled : styles.button}>
+                      {loadingQr ? 'Memverifikasi...' : '✨ Check-in via ID'}
                     </button>
                   </form>
                 </div>
@@ -501,19 +466,6 @@ const styles = {
   headerTitle: { color: '#FFFFFF', fontSize: '28px', fontWeight: '700', margin: '0 0 8px 0' },
   headerSubtitle: { color: '#D4E0D8', fontSize: '15px', margin: 0, fontStyle: 'italic' },
   body: { padding: '24px' },
-  
-  // === GEOFENCING BANNER STYLES ===
-  geoBannerAllowed: { backgroundColor: '#E8F5E9', border: '2px solid #2E7D32', borderRadius: '12px', padding: '16px', marginBottom: '20px' },
-  geoBannerDenied: { backgroundColor: '#FFEBEE', border: '2px solid #C0392B', borderRadius: '12px', padding: '16px', marginBottom: '20px' },
-  geoBannerError: { backgroundColor: '#FFF3E0', border: '2px solid #E65100', borderRadius: '12px', padding: '16px', marginBottom: '20px' },
-  geoBannerInfo: { backgroundColor: '#E3F2FD', border: '2px solid #1976D2', borderRadius: '12px', padding: '16px', marginBottom: '20px' },
-  geoBannerHeader: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' },
-  geoBannerIcon: { fontSize: '20px' },
-  geoBannerTitle: { fontSize: '15px', fontWeight: '700', color: '#3D4A42' },
-  geoBannerMessage: { fontSize: '14px', color: '#5B7060', margin: '0 0 12px 0', lineHeight: '1.5' },
-  geoBtnAllow: { width: '100%', padding: '12px', backgroundColor: '#5B7060', color: '#FFFFFF', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' },
-  geoDeniedHint: { fontSize: '13px', color: '#C0392B', margin: '8px 0 0 0', fontStyle: 'italic', textAlign: 'center' },
-  
   infoBox: { backgroundColor: '#FDF6E3', border: '2px solid #D4AF37', borderRadius: '12px', padding: '20px', marginBottom: '24px' },
   infoLabel: { color: '#8A7A5A', fontSize: '12px', fontWeight: '700', letterSpacing: '1px', marginBottom: '8px' },
   infoNama: { color: '#5B7060', fontSize: '24px', fontWeight: '700', marginBottom: '4px' },
@@ -535,7 +487,6 @@ const styles = {
   btnHadir: { padding: '12px 22px', backgroundColor: '#5B7060', color: '#FFFFFF', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '800', letterSpacing: '0.5px', boxShadow: '0 2px 6px rgba(91, 112, 96, 0.35)', flexShrink: 0 },
   btnHadirDisabled: { padding: '12px 22px', backgroundColor: '#A8B5AD', color: '#FFFFFF', border: 'none', borderRadius: '10px', cursor: 'wait', fontSize: '14px', fontWeight: '800', flexShrink: 0 },
   badgeHadir: { padding: '12px 18px', backgroundColor: '#5B7060', color: '#FFFFFF', borderRadius: '10px', fontSize: '14px', fontWeight: '800', letterSpacing: '0.5px', flexShrink: 0 },
-  badgeBlocked: { padding: '12px 18px', backgroundColor: '#E0E0E0', color: '#757575', borderRadius: '10px', fontSize: '14px', fontWeight: '800', flexShrink: 0, cursor: 'not-allowed' },
   button: { width: '100%', padding: '18px', fontSize: '17px', fontWeight: '700', color: '#FFFFFF', backgroundColor: '#5B7060', border: 'none', borderRadius: '12px', cursor: 'pointer', marginTop: '8px' },
   buttonDisabled: { width: '100%', padding: '18px', fontSize: '17px', fontWeight: '700', color: '#FFFFFF', backgroundColor: '#A8B5AD', border: 'none', borderRadius: '12px', cursor: 'not-allowed', marginTop: '8px' },
   successBanner: { backgroundColor: '#E8F5E9', borderLeft: '4px solid #2E7D32', borderRadius: '10px', padding: '14px', marginTop: '16px' },
