@@ -33,6 +33,11 @@ export default function AdminPage() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
+  // === STATE BARU: GEOFENCING ===
+  const [geoConfig, setGeoConfig] = useState({ enabled: false, lat: -6.926116650622637, lng: 107.60863387231466, radius: 100 });
+  const [loadingGeo, setLoadingGeo] = useState(false);
+  const [geoMsg, setGeoMsg] = useState('');
+
   const ADMIN_PIN = '123456';
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const intervalRef = useRef(null);
@@ -43,26 +48,11 @@ export default function AdminPage() {
     else { setPinError('PIN salah.'); }
   };
 
-  // === FUNGSI HELPER: Parse response dari proxy (FIXED) ===
   const parseResponse = (data) => {
     if (!data) return null;
-    
-    // Cek double-nesting DULU: {data: {success: true, data: [...]}}
-    if (data.data && data.data.success !== undefined && data.data.data !== undefined) {
-      return data.data.data;
-    }
-    
-    // Cek single-nesting: {success: true, data: [...]}
-    if (data.success !== undefined && data.data !== undefined) {
-      return data.data;
-    }
-    
-    // Cek hanya data: {data: [...]}
-    if (data.data !== undefined) {
-      return data.data;
-    }
-    
-    // Langsung data
+    if (data.data && data.data.success !== undefined && data.data.data !== undefined) return data.data.data;
+    if (data.success !== undefined && data.data !== undefined) return data.data;
+    if (data.data !== undefined) return data.data;
     return data;
   };
 
@@ -85,8 +75,7 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAllKegiatan' }) });
       const data = await res.json();
-      const parsed = parseResponse(data);
-      setKegiatanList(Array.isArray(parsed) ? parsed : []);
+      setKegiatanList(Array.isArray(parseResponse(data)) ? parseResponse(data) : []);
     } catch (error) { console.error(error); setKegiatanList([]); }
     finally { setLoadingKegiatan(false); }
   };
@@ -96,46 +85,21 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getStatistikKehadiran', data: filter }) });
       const data = await res.json();
-      console.log('Statistik raw:', data);
-      if (parseSuccess(data)) {
-        const parsed = parseResponse(data);
-        console.log('Statistik parsed:', parsed);
-        setStatistik(parsed);
-      } else {
-        setStatistik(null);
-      }
-    } catch (error) { 
-      console.error('Error muatStatistik:', error); 
-      setStatistik(null); 
-    }
+      if (parseSuccess(data)) setStatistik(parseResponse(data));
+      else setStatistik(null);
+    } catch (error) { console.error('Error muatStatistik:', error); setStatistik(null); }
     finally { setLoadingStatistik(false); }
   };
 
   const muatAbsensiHariIni = async () => {
     setLoadingAbsensi(true);
     try {
-      const res = await fetch('/api/proxy', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'getAbsensiHariIni' }) 
-      });
+      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAbsensiHariIni' }) });
       const data = await res.json();
-      console.log('=== DEBUG ABSENSI ===');
-      console.log('1. Raw response:', data);
-      
-      const newData = parseResponse(data);
-      console.log('2. After parseResponse:', newData);
-      console.log('3. Is array?', Array.isArray(newData));
-      console.log('4. Length:', Array.isArray(newData) ? newData.length : 'N/A');
-      
-      setAbsensiHariIni(Array.isArray(newData) ? newData : []);
+      setAbsensiHariIni(Array.isArray(parseResponse(data)) ? parseResponse(data) : []);
       setLastRefresh(new Date());
-    } catch (error) { 
-      console.error('❌ Error muatAbsensiHariIni:', error); 
-      setAbsensiHariIni([]); 
-    } finally { 
-      setLoadingAbsensi(false); 
-    }
+    } catch (error) { console.error('❌ Error muatAbsensiHariIni:', error); setAbsensiHariIni([]); } 
+    finally { setLoadingAbsensi(false); }
   };
 
   const kirimRingkasan = async () => {
@@ -150,22 +114,72 @@ export default function AdminPage() {
     finally { setLoadingRingkasan(false); }
   };
 
+  // === FUNGSI GEOFENCING ===
+  const muatGeoConfig = async () => {
+    setLoadingGeo(true);
+    try {
+      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getGeofencingConfig' }) });
+      const data = await res.json();
+      if (parseSuccess(data)) setGeoConfig(parseResponse(data));
+    } catch (error) { console.error('Error muatGeoConfig:', error); }
+    finally { setLoadingGeo(false); }
+  };
+
+  const simpanGeoConfig = async () => {
+    setLoadingGeo(true);
+    setGeoMsg('Menyimpan konfigurasi...');
+    try {
+      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setGeofencingConfig', data: geoConfig }) });
+      const data = await res.json();
+      if (parseSuccess(data)) {
+        setGeoMsg('✅ Konfigurasi Geofencing berhasil disimpan!');
+      } else {
+        setGeoMsg('❌ Gagal: ' + parseMessage(data));
+      }
+    } catch (error) { setGeoMsg('❌ Gagal terhubung ke server.'); }
+    finally { setLoadingGeo(false); }
+  };
+
+  const gunakanLokasiSaya = () => {
+    if (!navigator.geolocation) {
+      setGeoMsg('❌ Browser Anda tidak mendukung fitur geolokasi.');
+      return;
+    }
+    setGeoMsg('📍 Sedang mengambil lokasi Anda...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGeoConfig(prev => ({ 
+          ...prev, 
+          lat: position.coords.latitude, 
+          lng: position.coords.longitude 
+        }));
+        setGeoMsg('✅ Lokasi berhasil diambil! Silakan klik "Simpan Konfigurasi".');
+      },
+      (error) => {
+        let msg = '❌ Gagal mengambil lokasi: ';
+        if (error.code === 1) msg += 'Izin lokasi ditolak. Aktifkan di pengaturan browser.';
+        else if (error.code === 2) msg += 'Lokasi tidak tersedia. Pastikan GPS aktif.';
+        else if (error.code === 3) msg += 'Timeout. Coba lagi.';
+        else msg += error.message;
+        setGeoMsg(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   useEffect(() => {
     if (isAuthenticated && activeTab === 'live' && autoRefresh) {
       muatAbsensiHariIni();
-      intervalRef.current = setInterval(() => {
-        muatAbsensiHariIni();
-      }, 10000);
+      intervalRef.current = setInterval(() => { muatAbsensiHariIni(); }, 10000);
     }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [isAuthenticated, activeTab, autoRefresh]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     if (activeTab === 'jadwal') muatKegiatan();
     else if (activeTab === 'dashboard') muatStatistik();
+    else if (activeTab === 'geofencing') muatGeoConfig();
   }, [isAuthenticated, activeTab]);
 
   const handleAktifkan = async (e) => {
@@ -239,6 +253,7 @@ export default function AdminPage() {
           <button onClick={() => setActiveTab('live')} style={activeTab === 'live' ? styles.tabActive : styles.tab}>👥 Live Absensi</button>
           <button onClick={() => setActiveTab('jadwal')} style={activeTab === 'jadwal' ? styles.tabActive : styles.tab}>📅 Jadwal</button>
           <button onClick={() => setActiveTab('dashboard')} style={activeTab === 'dashboard' ? styles.tabActive : styles.tab}>📊 Dashboard</button>
+          <button onClick={() => setActiveTab('geofencing')} style={activeTab === 'geofencing' ? styles.tabActive : styles.tab}>📍 Geofencing</button>
         </div>
 
         {activeTab === 'live' && (
@@ -246,42 +261,23 @@ export default function AdminPage() {
             <div style={styles.liveHeader}>
               <div>
                 <h2 style={styles.sectionTitle}>👥 Kehadiran Hari Ini</h2>
-                <p style={styles.liveCount}>
-                  Total: <strong>{absensiHariIni.length}</strong> umat hadir
-                  {lastRefresh && <span style={{fontSize: '12px', color: '#8A9A90', marginLeft: '12px'}}>
-                    (Update: {formatWaktu(lastRefresh)})
-                  </span>}
+                <p style={styles.liveCount}>Total: <strong>{absensiHariIni.length}</strong> umat hadir
+                  {lastRefresh && <span style={{fontSize: '12px', color: '#8A9A90', marginLeft: '12px'}}>(Update: {formatWaktu(lastRefresh)})</span>}
                 </p>
               </div>
               <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
                 <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#5B7060', cursor: 'pointer'}}>
-                  <input 
-                    type="checkbox" 
-                    checked={autoRefresh} 
-                    onChange={(e) => setAutoRefresh(e.target.checked)}
-                    style={{accentColor: '#5B7060'}}
-                  />
-                  Auto-refresh
+                  <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} style={{accentColor: '#5B7060'}} /> Auto-refresh
                 </label>
-                <button onClick={muatAbsensiHariIni} disabled={loadingAbsensi} style={styles.btnRefresh}>
-                  {loadingAbsensi ? '⏳' : '🔄'} Refresh
-                </button>
-                <button onClick={kirimRingkasan} disabled={loadingRingkasan} style={styles.btnTelegram}>
-                  {loadingRingkasan ? '⏳ Mengirim...' : '📤 Kirim Ringkasan'}
-                </button>
+                <button onClick={muatAbsensiHariIni} disabled={loadingAbsensi} style={styles.btnRefresh}>{loadingAbsensi ? '⏳' : '🔄'} Refresh</button>
+                <button onClick={kirimRingkasan} disabled={loadingRingkasan} style={styles.btnTelegram}>{loadingRingkasan ? '⏳ Mengirim...' : '📤 Kirim Ringkasan'}</button>
               </div>
             </div>
-            
             <div style={styles.searchBox}>
               <input type="text" value={searchNama} onChange={(e) => setSearchNama(e.target.value)} placeholder="🔍 Ketik nama umat..." style={styles.input} />
             </div>
-            
             {absensiTersaring.length === 0 ? (
-              <div style={styles.emptyState}>
-                {searchNama ? 'Tidak ada umat dengan nama tersebut.' : 
-                 loadingAbsensi ? 'Memuat data...' :
-                 'Belum ada umat yang absen hari ini.'}
-              </div>
+              <div style={styles.emptyState}>{searchNama ? 'Tidak ada umat dengan nama tersebut.' : loadingAbsensi ? 'Memuat data...' : 'Belum ada umat yang absen hari ini.'}</div>
             ) : (
               <div style={styles.list}>
                 {absensiTersaring.map((a, idx) => (
@@ -380,14 +376,7 @@ export default function AdminPage() {
                 {statistik.perMinggu && Object.keys(statistik.perMinggu).length > 0 && (
                   <section style={styles.section}>
                     <h2 style={styles.sectionTitle}>📅 Kehadiran per Tanggal {filter.periode === 'bulan' ? `(Bulan ${NAMA_BULAN[filter.bulan-1]}/${filter.tahun})` : ''}</h2>
-                    <div style={styles.list}>
-                      {Object.entries(statistik.perMinggu).map(([tgl, count]) => (
-                        <div key={tgl} style={styles.listItem}>
-                          <strong style={styles.listItemTitle}>{tgl}</strong>
-                          <span style={styles.badge}>{count}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <div style={styles.list}>{Object.entries(statistik.perMinggu).map(([tgl, count]) => (<div key={tgl} style={styles.listItem}><strong style={styles.listItemTitle}>{tgl}</strong><span style={styles.badge}>{count}</span></div>))}</div>
                   </section>
                 )}
                 <section style={styles.section}>
@@ -401,7 +390,84 @@ export default function AdminPage() {
           </div>
         )}
 
-        {statusMsg && activeTab !== 'jadwal' && <p style={styles.status}>{statusMsg}</p>}
+        {/* === TAB BARU: GEOFENCING === */}
+        {activeTab === 'geofencing' && (
+          <div>
+            <section style={styles.section}>
+              <h2 style={styles.sectionTitle}>📍 Pengaturan Geofencing (Batas Lokasi)</h2>
+              <p style={{...styles.hint, marginTop: 0, marginBottom: '24px', fontStyle: 'normal', color: '#5B7060'}}>
+                Fitur ini membatasi absensi hanya untuk umat yang berada di dalam radius tertentu dari Vihara. 
+                <strong> Default: NONAKTIF</strong> (aman untuk testing).
+              </p>
+              
+              <div style={styles.formGrid}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Status Geofencing</label>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px'}}>
+                    <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', color: geoConfig.enabled ? '#2E7D32' : '#8A9A90'}}>
+                      <input 
+                        type="checkbox" 
+                        checked={geoConfig.enabled} 
+                        onChange={(e) => setGeoConfig({...geoConfig, enabled: e.target.checked})}
+                        style={{width: '20px', height: '20px', accentColor: '#5B7060'}}
+                      />
+                      {geoConfig.enabled ? '✅ AKTIF (Absen diblokir di luar radius)' : '⛔ NONAKTIF (Absen bebas lokasi)'}
+                    </label>
+                  </div>
+                </div>
+
+                <div style={styles.formRow}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Latitude Vihara</label>
+                    <input type="number" step="any" value={geoConfig.lat} onChange={(e) => setGeoConfig({...geoConfig, lat: parseFloat(e.target.value)})} style={styles.input} />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Longitude Vihara</label>
+                    <input type="number" step="any" value={geoConfig.lng} onChange={(e) => setGeoConfig({...geoConfig, lng: parseFloat(e.target.value)})} style={styles.input} />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Radius (Meter)</label>
+                    <input type="number" value={geoConfig.radius} onChange={(e) => setGeoConfig({...geoConfig, radius: parseInt(e.target.value) || 0})} style={styles.input} />
+                  </div3>
+                </div>
+
+                <div style={{display: 'flex', gap: '12px', marginTop: '8px'}}>
+                  <button type="button" onClick={gunakanLokasiSaya} style={styles.buttonSecondary}>📍 Gunakan Lokasi Saya Saat Ini</button>
+                  <button type="button" onClick={simpanGeoConfig} disabled={loadingGeo} style={loadingGeo ? styles.buttonDisabled : styles.button}>
+                    {loadingGeo ? 'Menyimpan...' : '💾 Simpan Konfigurasi'}
+                  </button>
+                </div>
+
+                {geoMsg && (
+                  <p style={{
+                    ...styles.status, 
+                    backgroundColor: geoMsg.includes('✅') ? '#E8F5E9' : geoMsg.includes('❌') ? '#FFEBEE' : '#F0F4F1',
+                    color: geoMsg.includes('✅') ? '#2E7D32' : geoMsg.includes('❌') ? '#C0392B' : '#5B7060',
+                    borderLeft: `4px solid ${geoMsg.includes('✅') ? '#2E7D32' : geoMsg.includes('❌') ? '#C0392B' : '#D4AF37'}`
+                  }}>
+                    {geoMsg}
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section style={styles.section}>
+              <h2 style={styles.sectionTitle}>🧪 Cara Testing Geofencing</h2>
+              <div style={{...styles.listItem, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}>
+                <ol style={{margin: 0, paddingLeft: '20px', color: '#5B7060', lineHeight: '1.8'}}>
+                  <li>Pastikan <strong>Status Geofencing</strong> dicentang (AKTIF).</li>
+                  <li>Klik <strong>"Gunakan Lokasi Saya Saat Ini"</strong> (pastikan Anda sedang di Vihara untuk akurasi maksimal).</li>
+                  <li>Klik <strong>"Simpan Konfigurasi"</strong>.</li>
+                  <li>Buka halaman absensi umat (<code>/</code>) di HP lain atau mode Incognito.</li>
+                  <li>Coba absen. Jika Anda di luar radius, tombol absen akan terkunci 🔒 dan muncul peringatan.</li>
+                  <li>Jika testing selesai, <strong>jangan lupa centang ulang ke NONAKTIF</strong> agar umat bisa absen normal.</li>
+                </ol>
+              </div>
+            </section7>
+          </div>
+        )}
+
+        {statusMsg && activeTab !== 'jadwal' && activeTab !== 'geofencing' && <p style={styles.status}>{statusMsg}</p>}
         <a href="/" style={styles.link}>← Kembali ke Halaman Absensi</a>
       </div>
     </main>
