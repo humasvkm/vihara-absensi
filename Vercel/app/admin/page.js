@@ -1,6 +1,12 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 
+// ============================================================
+// 🔐 GANTI PIN ADMIN DI SINI (6 digit angka)
+// ============================================================
+const ADMIN_PIN = '444444';  // <-- GANTI ANGKA INI SESUKA ANDA
+// ============================================================
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
@@ -33,12 +39,10 @@ export default function AdminPage() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // === STATE GEOFENCING ===
   const [geoConfig, setGeoConfig] = useState({ enabled: false, lat: -6.926116650622637, lng: 107.60863387231466, radius: 100 });
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [geoMsg, setGeoMsg] = useState('');
 
-  const ADMIN_PIN = '4444';
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const intervalRef = useRef(null);
 
@@ -114,7 +118,6 @@ export default function AdminPage() {
     finally { setLoadingRingkasan(false); }
   };
 
-  // === FUNGSI GEOFENCING ===
   const muatGeoConfig = async () => {
     setLoadingGeo(true);
     try {
@@ -150,9 +153,9 @@ export default function AdminPage() {
       },
       (error) => {
         let msg = '❌ Gagal mengambil lokasi: ';
-        if (error.code === 1) msg += 'Izin lokasi ditolak. Aktifkan di pengaturan browser.';
-        else if (error.code === 2) msg += 'Lokasi tidak tersedia. Pastikan GPS aktif.';
-        else if (error.code === 3) msg += 'Timeout. Coba lagi.';
+        if (error.code === 1) msg += 'Izin lokasi ditolak.';
+        else if (error.code === 2) msg += 'Lokasi tidak tersedia.';
+        else if (error.code === 3) msg += 'Timeout.';
         else msg += error.message;
         setGeoMsg(msg);
       },
@@ -208,7 +211,7 @@ export default function AdminPage() {
 
   const formatWaktu = (date) => {
     if (!date) return '-';
-    return date.toLocaleTimeString('id-ID', { hour: '2-', minute: '2-', second: '2-' });
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
   if (!isAuthenticated) {
@@ -220,11 +223,11 @@ export default function AdminPage() {
           <p style={styles.subtitle}>Vihara Karuna Mukti, Bandung</p>
           <form onSubmit={handleLogin} style={styles.form}>
             <label style={styles.label}>🔐 Masukkan PIN Admin</label>
-            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="4 digit PIN" maxLength="4" style={styles.input} autoFocus />
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="6 digit PIN" maxLength="6" style={styles.input} autoFocus />
             {pinError && <p style={styles.error}>{pinError}</p>}
             <button type="submit" style={styles.button}>Masuk</button>
           </form>
-   
+          <p style={styles.hint}>PIN default: 123456</p>
           <a href="/" style={styles.link}>← Kembali ke Halaman Absensi</a>
         </div>
       </main>
@@ -383,7 +386,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* === TAB GEOFENCING === */}
         {activeTab === 'geofencing' && (
           <div>
             <section style={styles.section}>
@@ -392,58 +394,30 @@ export default function AdminPage() {
                 Fitur ini membatasi absensi hanya untuk umat yang berada di dalam radius tertentu dari Vihara. 
                 <strong> Default: NONAKTIF</strong> (aman untuk testing).
               </p>
-              
               <div style={styles.formGrid}>
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Status Geofencing</label>
                   <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px'}}>
                     <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', color: geoConfig.enabled ? '#2E7D32' : '#8A9A90'}}>
-                      <input 
-                        type="checkbox" 
-                        checked={geoConfig.enabled} 
-                        onChange={(e) => setGeoConfig({...geoConfig, enabled: e.target.checked})}
-                        style={{width: '20px', height: '20px', accentColor: '#5B7060'}}
-                      />
+                      <input type="checkbox" checked={geoConfig.enabled} onChange={(e) => setGeoConfig({...geoConfig, enabled: e.target.checked})} style={{width: '20px', height: '20px', accentColor: '#5B7060'}} />
                       {geoConfig.enabled ? '✅ AKTIF (Absen diblokir di luar radius)' : '⛔ NONAKTIF (Absen bebas lokasi)'}
                     </label>
                   </div>
                 </div>
-
                 <div style={styles.formRow}>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Latitude Vihara</label>
-                    <input type="number" step="any" value={geoConfig.lat} onChange={(e) => setGeoConfig({...geoConfig, lat: parseFloat(e.target.value)})} style={styles.input} />
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Longitude Vihara</label>
-                    <input type="number" step="any" value={geoConfig.lng} onChange={(e) => setGeoConfig({...geoConfig, lng: parseFloat(e.target.value)})} style={styles.input} />
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Radius (Meter)</label>
-                    <input type="number" value={geoConfig.radius} onChange={(e) => setGeoConfig({...geoConfig, radius: parseInt(e.target.value) || 0})} style={styles.input} />
-                  </div>
+                  <div style={styles.formGroup}><label style={styles.label}>Latitude Vihara</label><input type="number" step="any" value={geoConfig.lat} onChange={(e) => setGeoConfig({...geoConfig, lat: parseFloat(e.target.value)})} style={styles.input} /></div>
+                  <div style={styles.formGroup}><label style={styles.label}>Longitude Vihara</label><input type="number" step="any" value={geoConfig.lng} onChange={(e) => setGeoConfig({...geoConfig, lng: parseFloat(e.target.value)})} style={styles.input} /></div>
+                  <div style={styles.formGroup}><label style={styles.label}>Radius (Meter)</label><input type="number" value={geoConfig.radius} onChange={(e) => setGeoConfig({...geoConfig, radius: parseInt(e.target.value) || 0})} style={styles.input} /></div>
                 </div>
-
                 <div style={{display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap'}}>
                   <button type="button" onClick={gunakanLokasiSaya} style={{...styles.buttonSecondary, width: 'auto', flex: 1, minWidth: '200px'}}>📍 Gunakan Lokasi Saya Saat Ini</button>
-                  <button type="button" onClick={simpanGeoConfig} disabled={loadingGeo} style={{...styles.button, width: 'auto', flex: 1, minWidth: '200px', marginTop: 0}}>
-                    {loadingGeo ? 'Menyimpan...' : '💾 Simpan Konfigurasi'}
-                  </button>
+                  <button type="button" onClick={simpanGeoConfig} disabled={loadingGeo} style={{...styles.button, width: 'auto', flex: 1, minWidth: '200px', marginTop: 0}}>{loadingGeo ? 'Menyimpan...' : '💾 Simpan Konfigurasi'}</button>
                 </div>
-
                 {geoMsg && (
-                  <p style={{
-                    ...styles.status, 
-                    backgroundColor: geoMsg.includes('✅') ? '#E8F5E9' : geoMsg.includes('❌') ? '#FFEBEE' : '#F0F4F1',
-                    color: geoMsg.includes('✅') ? '#2E7D32' : geoMsg.includes('❌') ? '#C0392B' : '#5B7060',
-                    borderLeft: `4px solid ${geoMsg.includes('✅') ? '#2E7D32' : geoMsg.includes('❌') ? '#C0392B' : '#D4AF37'}`
-                  }}>
-                    {geoMsg}
-                  </p>
+                  <p style={{...styles.status, backgroundColor: geoMsg.includes('✅') ? '#E8F5E9' : geoMsg.includes('❌') ? '#FFEBEE' : '#F0F4F1', color: geoMsg.includes('✅') ? '#2E7D32' : geoMsg.includes('❌') ? '#C0392B' : '#5B7060', borderLeft: `4px solid ${geoMsg.includes('✅') ? '#2E7D32' : geoMsg.includes('❌') ? '#C0392B' : '#D4AF37'}`}}>{geoMsg}</p>
                 )}
               </div>
             </section>
-
             <section style={styles.section}>
               <h2 style={styles.sectionTitle}>🧪 Cara Testing Geofencing</h2>
               <div style={{...styles.listItem, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}>
