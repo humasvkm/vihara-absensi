@@ -98,7 +98,7 @@ export default function Home() {
     }, delay);
   };
 
-  // === VALIDASI LOKASI (dipanggil saat klik HADIR) ===
+  // === VALIDASI LOKASI (dipanggil saat klik HADIR atau setelah QR discan) ===
   const validasiLokasi = async () => {
     if (!geoConfig || !geoConfig.enabled) return { allowed: true };
     
@@ -148,7 +148,6 @@ export default function Home() {
     setStatus(''); 
     setStatusType('');
 
-    // === VALIDASI LOKASI DI BACKGROUND ===
     let userLat = null, userLng = null;
     
     if (geoConfig && geoConfig.enabled) {
@@ -168,7 +167,6 @@ export default function Home() {
       userLng = geoResult.lng;
     }
 
-    // === LANJUTKAN ABSEN NORMAL ===
     try {
       const body = { 
         action: 'simpanAbsensi', 
@@ -223,7 +221,7 @@ export default function Home() {
     setStatus('Memverifikasi... 🙏'); 
     setStatusType('');
 
-    // === VALIDASI LOKASI DI BACKGROUND ===
+    // === VALIDASI LOKASI (hanya jika geofencing aktif) ===
     let userLat = null, userLng = null;
     
     if (geoConfig && geoConfig.enabled) {
@@ -279,11 +277,27 @@ export default function Home() {
 
   const startCameraInternal = async () => {
     setCameraError('');
+    setCameraReady(false);
     try {
       const readerElement = document.getElementById('qr-reader');
-      if (!readerElement) { setCameraError('Elemen kamera belum siap.'); setCameraActive(false); return; }
+      if (!readerElement) { 
+        setCameraError('Elemen kamera belum siap.'); 
+        setCameraActive(false); 
+        return; 
+      }
+      
+      // Bersihkan elemen sebelumnya
+      if (html5QrCodeRef.current) {
+        try { 
+          await html5QrCodeRef.current.stop(); 
+          html5QrCodeRef.current.clear(); 
+        } catch (e) {}
+        html5QrCodeRef.current = null;
+      }
+      
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
+      
       await html5QrCode.start(
         { facingMode: { exact: 'environment' } },
         { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
@@ -307,7 +321,7 @@ export default function Home() {
         setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); 
         setStatusType('');
       } catch (err2) {
-        setCameraError('Tidak dapat mengakses kamera. (' + err2.message + ')');
+        setCameraError('Tidak dapat mengakses kamera. Pastikan izin kamera diberikan. (' + err2.message + ')');
         setCameraActive(false); 
         setCameraReady(false);
       }
@@ -316,7 +330,10 @@ export default function Home() {
 
   const stopCameraInternal = async () => {
     if (html5QrCodeRef.current && cameraReady) {
-      try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (err) {}
+      try { 
+        await html5QrCodeRef.current.stop(); 
+        html5QrCodeRef.current.clear(); 
+      } catch (err) {}
       html5QrCodeRef.current = null;
     }
     setCameraReady(false);
