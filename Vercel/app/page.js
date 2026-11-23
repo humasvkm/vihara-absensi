@@ -17,7 +17,7 @@ export default function Home() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
-  const [cameraDebug, setCameraDebug] = useState(''); // === BARU: log diagnostik ===
+  const [cameraDebug, setCameraDebug] = useState('');
   const [scanCount, setScanCount] = useState(0);
   const [lastScan, setLastScan] = useState(null);
   
@@ -34,6 +34,7 @@ export default function Home() {
   const qrInputRef = useRef(null);
   const lastTapTimeRef = useRef(0);
   const tapTimeoutRef = useRef(null);
+  const cameraStartRef = useRef(null); // Ref untuk cleanup timeout
 
   useEffect(() => { 
     muatDataAwal();
@@ -43,8 +44,26 @@ export default function Home() {
   useEffect(() => {
     return () => {
       if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+      if (cameraStartRef.current) clearTimeout(cameraStartRef.current);
     };
   }, []);
+
+  // === useEffect untuk kamera: jalan HANYA saat cameraActive jadi true ===
+  useEffect(() => {
+    if (cameraActive) {
+      // Tunggu 300ms agar elemen #qr-reader benar-benar render
+      const timer = setTimeout(() => {
+        startCameraInternal();
+      }, 300);
+      cameraStartRef.current = timer;
+    } else {
+      // Saat cameraActive jadi false, stop kamera
+      stopCameraInternal();
+    }
+    return () => {
+      if (cameraStartRef.current) clearTimeout(cameraStartRef.current);
+    };
+  }, [cameraActive]);
 
   useEffect(() => {
     if (tapCount >= TAP_THRESHOLD) {
@@ -101,272 +120,203 @@ export default function Home() {
 
   const validasiLokasi = async () => {
     if (!geoConfig || !geoConfig.enabled) return { allowed: true };
-    
     if (!navigator.geolocation) {
-      return { allowed: false, message: 'Browser tidak mendukung geolokasi. Silakan hubungi panitia.' };
+      return { allowed: false, message: 'Browser tidak mendukung geolokasi.' };
     }
-    
     try {
       const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { 
-          enableHighAccuracy: true, 
-          timeout: 15000,
-          maximumAge: 0 
-        });
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
       });
-      
-      const userLat = position.coords.latitude;
-      const userLng = position.coords.longitude;
-      
-      const geoRes = await fetch('/api/proxy', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ action: 'cekGeofencing', data: { userLat, userLng } }) 
-      });
+      const geoRes = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cekGeofencing', data: { userLat: position.coords.latitude, userLng: position.coords.longitude } }) });
       const geoData = await geoRes.json();
-      
-      return { allowed: geoData.allowed, message: geoData.message, lat: userLat, lng: userLng };
+      return { allowed: geoData.allowed, message: geoData.message, lat: position.coords.latitude, lng: position.coords.longitude };
     } catch (geoError) {
       let msg = 'Gagal memvalidasi lokasi. ';
-      if (geoError.code === 1) msg += 'Izin lokasi ditolak. Aktifkan izin lokasi di pengaturan browser.';
-      else if (geoError.code === 2) msg += 'Lokasi tidak tersedia. Pastikan GPS aktif.';
-      else if (geoError.code === 3) msg += 'Timeout. Coba lagi.';
-      else msg += 'Silakan coba lagi.';
+      if (geoError.code === 1) msg += 'Izin lokasi ditolak.';
+      else if (geoError.code === 2) msg += 'Lokasi tidak tersedia.';
+      else if (geoError.code === 3) msg += 'Timeout.';
+      else msg += 'Coba lagi.';
       return { allowed: false, message: msg };
     }
   };
 
   const handleHadir = async (umat) => {
-    if (!kegiatanHariIni || !kegiatanHariIni.valid) { 
-      setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); 
-      setStatusType('error'); 
-      return; 
-    }
+    if (!kegiatanHariIni || !kegiatanHariIni.valid) { setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); setStatusType('error'); return; }
     if (hadirSet.has(umat.id)) return;
-
-    setLoadingId(umat.id); 
-    setStatus(''); 
-    setStatusType('');
-
+    setLoadingId(umat.id); setStatus(''); setStatusType('');
     let userLat = null, userLng = null;
-    
     if (geoConfig && geoConfig.enabled) {
       setStatus('📍 Memvalidasi lokasi...');
-      setStatusType('');
-      
       const geoResult = await validasiLokasi();
-      
-      if (!geoResult.allowed) {
-        setStatus('❌ ' + geoResult.message);
-        setStatusType('error');
-        setLoadingId(null);
-        return;
-      }
-      
-      userLat = geoResult.lat;
-      userLng = geoResult.lng;
+      if (!geoResult.allowed) { setStatus('❌ ' + geoResult.message); setStatusType('error'); setLoadingId(null); return; }
+      userLat = geoResult.lat; userLng = geoResult.lng;
     }
-
     try {
-      const body = { 
-        action: 'simpanAbsensi', 
-        data: { 
-          idUmat: umat.id, nama: umat.nama, noWa: umat.noWa || '', 
-          idKegiatan: kegiatanHariIni.id, namaKegiatan: kegiatanHariIni.nama, 
-          metode: 'Manual_Input' 
-        } 
-      };
-      
-      if (userLat !== null) {
-        body.data.userLat = userLat;
-        body.data.userLng = userLng;
-      }
-      
+      const body = { action: 'simpanAbsensi', data: { idUmat: umat.id, nama: umat.nama, noWa: umat.noWa || '', idKegiatan: kegiatanHariIni.id, namaKegiatan: kegiatanHariIni.nama, metode: 'Manual_Input' } };
+      if (userLat !== null) { body.data.userLat = userLat; body.data.userLng = userLng; }
       const response = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const result = await response.json();
-
       if (result.success) {
         setHadirSet(prev => new Set(prev).add(umat.id));
-        setStatus('✅ ' + result.message); 
-        setStatusType('success');
+        setStatus('✅ ' + result.message); setStatusType('success');
         resetSetelahSukses();
       } else {
-        if (result.message && result.message.toLowerCase().includes('sudah')) {
-          setHadirSet(prev => new Set(prev).add(umat.id));
-        }
-        setStatus('❌ ' + result.message); 
-        setStatusType('error');
-        setLoadingId(null);
+        if (result.message && result.message.toLowerCase().includes('sudah')) setHadirSet(prev => new Set(prev).add(umat.id));
+        setStatus('❌ ' + result.message); setStatusType('error'); setLoadingId(null);
       }
-    } catch (error) { 
-      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); 
-      setStatusType('error'); 
-      setLoadingId(null); 
-    }
+    } catch (error) { setStatus('❌ Koneksi tidak stabil.'); setStatusType('error'); setLoadingId(null); }
   };
 
   const processQrScan = async (idUmatScan, source = 'camera') => {
     if (isScanningRef.current) return;
     isScanningRef.current = true;
-
     if (!idUmatScan || !idUmatScan.trim()) { isScanningRef.current = false; return; }
-    if (!kegiatanHariIni || !kegiatanHariIni.valid) { 
-      setStatus('⚠️ Tidak ada kegiatan aktif hari ini.'); 
-      setStatusType('error'); 
-      isScanningRef.current = false; 
-      return; 
-    }
-
-    setLoadingQr(true); 
-    setStatus('Memverifikasi... 🙏'); 
-    setStatusType('');
-
+    if (!kegiatanHariIni || !kegiatanHariIni.valid) { setStatus('⚠️ Tidak ada kegiatan aktif.'); setStatusType('error'); isScanningRef.current = false; return; }
+    setLoadingQr(true); setStatus('Memverifikasi... 🙏'); setStatusType('');
     let userLat = null, userLng = null;
-    
     if (geoConfig && geoConfig.enabled) {
       const geoResult = await validasiLokasi();
-      
-      if (!geoResult.allowed) {
-        setStatus('❌ ' + geoResult.message);
-        setStatusType('error');
-        setLoadingQr(false);
-        isScanningRef.current = false;
-        return;
-      }
-      
-      userLat = geoResult.lat;
-      userLng = geoResult.lng;
+      if (!geoResult.allowed) { setStatus('❌ ' + geoResult.message); setStatusType('error'); setLoadingQr(false); isScanningRef.current = false; return; }
+      userLat = geoResult.lat; userLng = geoResult.lng;
     }
-
     try {
       const body = { action: 'prosesCheckinQR', data: { idUmatScan: idUmatScan.trim() } };
-      if (userLat !== null) {
-        body.data.userLat = userLat;
-        body.data.userLng = userLng;
-      }
-      
+      if (userLat !== null) { body.data.userLat = userLat; body.data.userLng = userLng; }
       const response = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const result = await response.json();
-
       if (result.success) {
         setScanCount(prev => prev + 1);
         setLastScan({ nama: result.nama, id: idUmatScan.trim(), time: new Date() });
-        setStatus('✅ ' + result.message); 
-        setStatusType('success');
+        setStatus('✅ ' + result.message); setStatusType('success');
         setQrInput('');
-        setTimeout(() => {
-          setStatus(''); 
-          setStatusType('');
-          isScanningRef.current = false;
-          if (source === 'manual' && qrInputRef.current) qrInputRef.current.focus();
-        }, 500);
-      } else {
-        setStatus('❌ ' + result.message); 
-        setStatusType('error');
-        setTimeout(() => { isScanningRef.current = false; }, 1000);
-      }
-    } catch (error) {
-      setStatus('❌ Koneksi tidak stabil. Silakan coba lagi.'); 
-      setStatusType('error');
-      setTimeout(() => { isScanningRef.current = false; }, 1000);
-    } finally { 
-      setLoadingQr(false); 
-    }
+        setTimeout(() => { setStatus(''); setStatusType(''); isScanningRef.current = false; if (source === 'manual' && qrInputRef.current) qrInputRef.current.focus(); }, 500);
+      } else { setStatus('❌ ' + result.message); setStatusType('error'); setTimeout(() => { isScanningRef.current = false; }, 1000); }
+    } catch (error) { setStatus('❌ Koneksi tidak stabil.'); setStatusType('error'); setTimeout(() => { isScanningRef.current = false; }, 1000); }
+    finally { setLoadingQr(false); }
   };
 
-  // === FUNGSI KAMERA DENGAN DIAGNOSTIK LENGKAP ===
+  // === FUNGSI KAMERA DENGAN TIMEOUT & FALLBACK ===
   const startCameraInternal = async () => {
     const logs = [];
-    const addLog = (msg) => { logs.push(msg); setCameraDebug(logs.join('\n')); };
-
-    addLog('🔍 Mulai inisialisasi kamera...');
-    addLog('· Library Html5Qrcode: ' + (typeof Html5Qrcode !== 'undefined' ? '✅ ada' : '❌ TIDAK ADA'));
-    addLog('· navigator.mediaDevices: ' + (navigator.mediaDevices ? '✅ ada' : '❌ tidak ada'));
-    addLog('· Secure context (HTTPS): ' + (window.isSecureContext ? '✅ ya' : '❌ TIDAK'));
-
+    const log = (m) => { logs.push(m); setCameraDebug(logs.join('\n')); };
+    
+    log('🔍 Inisialisasi kamera...');
+    log('· Html5Qrcode: ' + (typeof Html5Qrcode !== 'undefined' ? '✅' : '❌'));
+    log('· HTTPS: ' + (window.isSecureContext ? '✅' : '❌'));
+    
     setCameraError('');
     setCameraReady(false);
 
     if (typeof Html5Qrcode === 'undefined') {
-      setCameraError('❌ Library QR scanner gagal dimuat. Refresh halaman (Ctrl+Shift+R) atau coba Chrome.');
+      setCameraError('❌ Library QR scanner gagal dimuat. Refresh halaman.');
       setCameraActive(false);
-      addLog('❌ FATAL: Html5Qrcode undefined');
+      log('❌ FATAL: Html5Qrcode undefined');
       return;
     }
 
-    // Cek dukungan kamera browser
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        addLog('🎦 Cek dukungan kamera via mediaDevices...');
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasCamera = devices.some(d => d.kind === 'videoinput');
-        addLog('· Kamera terdeteksi: ' + (hasCamera ? '✅ ya (' + devices.filter(d => d.kind === 'videoinput').length + ' kamera)' : '❌ TIDAK ADA'));
-        if (!hasCamera) {
-          setCameraError('❌ Tidak ada kamera yang terdeteksi di device ini.');
-          setCameraActive(false);
-          return;
-        }
-      } catch (e) {
-        addLog('⚠️ enumerateDevices error: ' + e.message);
-      }
-    }
-
     const readerElement = document.getElementById('qr-reader');
-    addLog('· Elemen #qr-reader: ' + (readerElement ? '✅ ditemukan' : '❌ TIDAK ADA'));
+    log('· Elemen #qr-reader: ' + (readerElement ? '✅' : '❌'));
     if (!readerElement) { 
-      setCameraError('Elemen kamera belum siap. Silakan coba lagi.'); 
+      setCameraError('Elemen kamera belum siap.'); 
       setCameraActive(false); 
       return; 
     }
 
+    // Cleanup instance lama
     if (html5QrCodeRef.current) {
-      addLog('· Membersihkan instance lama...');
+      log('· Cleanup instance lama...');
       try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
       html5QrCodeRef.current = null;
     }
 
-    addLog('🔄 Mencoba kamera belakang (exact)...');
+    // === COBA 1: Exact environment ===
+    log('🔄 Coba 1: kamera belakang (exact)...');
+    let started = false;
     try {
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
-      await html5QrCode.start(
-        { facingMode: { exact: 'environment' } },
-        { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
-        (decodedText) => { addLog('✅ QR terdeteksi: ' + decodedText); processQrScan(decodedText, 'camera'); },
-        () => {}
-      );
-      addLog('✅ Kamera belakang AKTIF');
+      
+      // Promise dengan timeout 5 detik
+      await Promise.race([
+        html5QrCode.start(
+          { facingMode: { exact: 'environment' } },
+          { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
+          (decodedText) => { log('✅ QR: ' + decodedText); processQrScan(decodedText, 'camera'); },
+          () => {}
+        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout 5 detik')), 5000))
+      ]);
+      
+      started = true;
+      log('✅ Coba 1 BERHASIL');
       setCameraReady(true);
-      setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); 
+      setStatus('📷 Kamera aktif. Arahkan QR Code ke kamera.');
       setStatusType('');
     } catch (err) {
-      addLog('❌ Exact gagal: ' + (err.name || '?') + ' - ' + (err.message || ''));
-      addLog('🔄 Fallback: kamera tanpa exact...');
+      log('❌ Coba 1 gagal: ' + (err.name || '') + ' - ' + (err.message || ''));
+      
+      // === COBA 2: Fallback tanpa exact ===
+      log('🔄 Coba 2: fallback (tanpa exact)...');
       try {
+        if (html5QrCodeRef.current) {
+          try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
+        }
         const html5QrCode = new Html5Qrcode('qr-reader');
         html5QrCodeRef.current = html5QrCode;
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
-          (decodedText) => { processQrScan(decodedText, 'camera'); },
-          () => {}
-        );
-        addLog('✅ Fallback AKTIF');
+        
+        await Promise.race([
+          html5QrCode.start(
+            { facingMode: 'environment' },
+            { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
+            (decodedText) => { processQrScan(decodedText, 'camera'); },
+            () => {}
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout 5 detik')), 5000))
+        ]);
+        
+        started = true;
+        log('✅ Coba 2 BERHASIL');
         setCameraReady(true);
-        setStatus('📷 Kamera aktif. Arahkan QR Code umat ke kamera.'); 
+        setStatus('📷 Kamera aktif. Arahkan QR Code ke kamera.');
         setStatusType('');
       } catch (err2) {
-        addLog('❌ Fallback juga gagal: ' + (err2.name || '?') + ' - ' + (err2.message || ''));
-        const msg = 'Tidak dapat mengakses kamera: ' + (err2.name || 'Unknown') + ' — ' + (err2.message || 'Cek izin kamera di pengaturan browser.');
-        setCameraError(msg);
-        setCameraActive(false); 
-        setCameraReady(false);
+        log('❌ Coba 2 gagal: ' + (err2.name || '') + ' - ' + (err2.message || ''));
+        
+        // === COBA 3: getUserMedia langsung ===
+        log('🔄 Coba 3: getUserMedia langsung...');
+        try {
+          if (html5QrCodeRef.current) {
+            try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
+          }
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          log('✅ Stream didapat: ' + stream.getVideoTracks()[0].label);
+          
+          const videoElement = document.createElement('video');
+          videoElement.srcObject = stream;
+          videoElement.autoplay = true;
+          videoElement.playsInline = true;
+          videoElement.style.width = '100%';
+          videoElement.style.borderRadius = '12px';
+          
+          readerElement.innerHTML = '';
+          readerElement.appendChild(videoElement);
+          
+          started = true;
+          log('✅ Coba 3 BERHASIL (video element)');
+          setCameraReady(true);
+          setStatus('📷 Kamera aktif (mode fallback).');
+          setStatusType('');
+        } catch (err3) {
+          log('❌ Coba 3 gagal: ' + (err3.name || '') + ' - ' + (err3.message || ''));
+          setCameraError('Tidak dapat mengakses kamera: ' + (err3.name || 'Unknown') + '. Cek izin kamera di pengaturan browser.');
+          setCameraActive(false);
+        }
       }
     }
   };
 
   const stopCameraInternal = async () => {
-    if (html5QrCodeRef.current && cameraReady) {
+    if (html5QrCodeRef.current) {
       try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (err) {}
       html5QrCodeRef.current = null;
     }
@@ -374,7 +324,7 @@ export default function Home() {
   };
 
   const handleMulaiScan = () => { setCameraError(''); setCameraDebug(''); setCameraActive(true); };
-  const handleStopScan = () => { stopCameraInternal(); setCameraActive(false); };
+  const handleStopScan = () => { setCameraActive(false); };
 
   const handleQrManualSubmit = async (e) => {
     e.preventDefault();
@@ -386,18 +336,7 @@ export default function Home() {
     <main style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <img 
-            src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" 
-            alt="Logo Dharma Chakra" 
-            style={{
-              ...styles.logo, 
-              transform: `scale(${logoScale})`, 
-              transition: 'transform 0.15s ease-out', 
-              cursor: 'pointer'
-            }}
-            onClick={handleLogoTap}
-            onTouchEnd={handleLogoTap}
-          />
+          <img src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" alt="Logo" style={{...styles.logo, transform: `scale(${logoScale})`, transition: 'transform 0.15s ease-out', cursor: 'pointer'}} onClick={handleLogoTap} onTouchEnd={handleLogoTap} />
           <h1 style={styles.headerTitle}>Absensi Kehadiran</h1>
           <p style={styles.headerSubtitle}>Vihara Karuna Mukti, Bandung</p>
         </div>
@@ -406,16 +345,9 @@ export default function Home() {
           <div style={styles.infoBox}>
             <div style={styles.infoLabel}>📅 KEGIATAN HARI INI</div>
             {kegiatanHariIni && kegiatanHariIni.valid ? (
-              <>
-                <div style={styles.infoNama}>{kegiatanHariIni.nama}</div>
-                <div style={styles.infoDetail}>{kegiatanHariIni.tanggal} | {kegiatanHariIni.waktu}</div>
-              </>
+              <><div style={styles.infoNama}>{kegiatanHariIni.nama}</div><div style={styles.infoDetail}>{kegiatanHariIni.tanggal} | {kegiatanHariIni.waktu}</div></>
             ) : (
-              <>
-                <div style={styles.infoNama}>🧘‍♂️ Tidak Ada Kegiatan Rutin</div>
-                <div style={styles.infoDetail}>Nikmati hari Anda dengan tenang.</div>
-                <div style={styles.infoJadwal}>🗓️ Jadwal Rutin: Minggu (08:00 - Puja Bakti) & Rabu (17:00 - Meditasi)</div>
-              </>
+              <><div style={styles.infoNama}>🧘‍♂️ Tidak Ada Kegiatan Rutin</div><div style={styles.infoDetail}>Nikmati hari Anda dengan tenang.</div><div style={styles.infoJadwal}>🗓️ Jadwal: Minggu (08:00 - Puja Bakti) & Rabu (17:00 - Meditasi)</div></>
             )}
           </div>
 
@@ -426,7 +358,7 @@ export default function Home() {
 
           {metode === 'cari' && (
             <div style={styles.section}>
-              <input ref={namaInputRef} type="text" value={nama} onChange={(e) => { setNama(e.target.value); setStatus(''); setStatusType(''); }} placeholder="Ketik minimal 2 huruf untuk mencari..." style={styles.input} autoFocus />
+              <input ref={namaInputRef} type="text" value={nama} onChange={(e) => { setNama(e.target.value); setStatus(''); setStatusType(''); }} placeholder="Ketik minimal 2 huruf..." style={styles.input} autoFocus />
               {umatTersaring.length > 0 && (
                 <div style={styles.resultList}>
                   {umatTersaring.map((u) => {
@@ -434,36 +366,24 @@ export default function Home() {
                     const isLoading = loadingId === u.id;
                     return (
                       <div key={u.id} style={sudahHadir ? styles.resultCardHadir : styles.resultCard}>
-                        <div style={styles.resultInfo}>
-                          <div style={styles.resultNama}>{u.nama}</div>
-                          <div style={styles.resultId}>{u.id}</div>
-                        </div>
-                        {sudahHadir ? (
-                          <span style={styles.badgeHadir}>✓ HADIR</span>
-                        ) : (
-                          <button onClick={() => handleHadir(u)} disabled={isLoading} style={isLoading ? styles.btnHadirDisabled : styles.btnHadir}>
-                            {isLoading ? '...' : 'HADIR'}
-                          </button>
-                        )}
+                        <div style={styles.resultInfo}><div style={styles.resultNama}>{u.nama}</div><div style={styles.resultId}>{u.id}</div></div>
+                        {sudahHadir ? <span style={styles.badgeHadir}>✓ HADIR</span> : <button onClick={() => handleHadir(u)} disabled={isLoading} style={isLoading ? styles.btnHadirDisabled : styles.btnHadir}>{isLoading ? '...' : 'HADIR'}</button>}
                       </div>
                     );
                   })}
                 </div>
               )}
-              {nama.length >= 2 && umatTersaring.length === 0 && <p style={styles.noResult}>Nama tidak ditemukan. Silakan <strong>Daftar Umat Baru</strong> di bawah.</p>}
+              {nama.length >= 2 && umatTersaring.length === 0 && <p style={styles.noResult}>Nama tidak ditemukan. Silakan <strong>Daftar Umat Baru</strong>.</p>}
               {nama.length < 2 && <p style={styles.hint}>Ketik minimal 2 huruf untuk menampilkan daftar nama</p>}
             </div>
           )}
 
           {metode === 'scan' && (
             <div style={styles.section}>
-              {scanCount > 0 && <div style={styles.scanCounter}>📊 <strong>{scanCount}</strong> umat telah check-in via QR pada sesi ini</div>}
+              {scanCount > 0 && <div style={styles.scanCounter}>📊 <strong>{scanCount}</strong> umat check-in via QR</div>}
               {lastScan && (
                 <div style={styles.lastScanCard}>
-                  <div style={styles.lastScanInfo}>
-                    <div style={styles.lastScanNama}>✅ {lastScan.nama}</div>
-                    <div style={styles.lastScanId}>ID: {lastScan.id} • {lastScan.time.toLocaleTimeString('id-ID')}</div>
-                  </div>
+                  <div style={styles.lastScanInfo}><div style={styles.lastScanNama}>✅ {lastScan.nama}</div><div style={styles.lastScanId}>ID: {lastScan.id} • {lastScan.time.toLocaleTimeString('id-ID')}</div></div>
                 </div>
               )}
               {cameraError && <div style={styles.errorBanner}><p style={styles.status}>⚠️ {cameraError}</p></div>}
@@ -475,13 +395,12 @@ export default function Home() {
                 </div>
               ) : (
                 <div style={styles.cameraWrapper}>
-                  <div id="qr-reader" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden' }} />
+                  <div id="qr-reader" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden', minHeight: '200px', backgroundColor: '#000' }} />
                   {cameraReady && <div style={styles.cameraHint}>🙏 Arahkan QR Code ID Umat ke kamera</div>}
                   {!cameraReady && <div style={styles.cameraHintLoading}>⏳ Memulai kamera...</div>}
                   <button onClick={handleStopScan} style={styles.btnStopCamera}>⏹️ Hentikan Kamera</button>
                 </div>
               )}
-              {/* === DIAGNOSTIK KAMERA (hanya tampil saat error/debug) === */}
               {cameraDebug && (
                 <div style={styles.debugBox}>
                   <div style={styles.debugTitle}>🔧 Diagnostik Kamera</div>
@@ -493,10 +412,8 @@ export default function Home() {
                   <div style={styles.dividerText}>— atau masukkan ID manual —</div>
                   <form onSubmit={handleQrManualSubmit}>
                     <input ref={qrInputRef} type="text" value={qrInput} onChange={(e) => { setQrInput(e.target.value); setStatus(''); setStatusType(''); }} placeholder="Contoh: VKM-001" style={styles.input} />
-                    <p style={styles.hint}>Tekan Enter untuk submit otomatis (cocok untuk scanner USB)</p>
-                    <button type="submit" disabled={loadingQr || !qrInput.trim()} style={(loadingQr || !qrInput.trim()) ? styles.buttonDisabled : styles.button}>
-                      {loadingQr ? 'Memverifikasi...' : '✨ Check-in via ID'}
-                    </button>
+                    <p style={styles.hint}>Tekan Enter untuk submit otomatis</p>
+                    <button type="submit" disabled={loadingQr || !qrInput.trim()} style={(loadingQr || !qrInput.trim()) ? styles.buttonDisabled : styles.button}>{loadingQr ? 'Memverifikasi...' : '✨ Check-in via ID'}</button>
                   </form>
                 </div>
               )}
@@ -571,7 +488,6 @@ const styles = {
   btnStopCamera: { width: '100%', padding: '14px', fontSize: '15px', fontWeight: '600', color: '#C0392B', backgroundColor: '#FFFFFF', border: '2px solid #C0392B', borderRadius: '10px', cursor: 'pointer' },
   manualSection: { marginTop: '20px' },
   dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' },
-  // === STYLE BARU: DIAGNOSTIK ===
   debugBox: { backgroundColor: '#263238', borderRadius: '10px', padding: '14px', marginTop: '16px', border: '1px solid #546E7A' },
   debugTitle: { color: '#FFCC80', fontSize: '13px', fontWeight: '700', marginBottom: '8px' },
   debugText: { color: '#B0BEC5', fontSize: '11px', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6', fontFamily: 'monospace' }
