@@ -17,7 +17,6 @@ export default function Home() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
-  const [cameraDebug, setCameraDebug] = useState('');
   const [scanCount, setScanCount] = useState(0);
   const [lastScan, setLastScan] = useState(null);
   
@@ -34,7 +33,7 @@ export default function Home() {
   const qrInputRef = useRef(null);
   const lastTapTimeRef = useRef(0);
   const tapTimeoutRef = useRef(null);
-  const cameraStartRef = useRef(null); // Ref untuk cleanup timeout
+  const cameraStartRef = useRef(null);
 
   useEffect(() => { 
     muatDataAwal();
@@ -48,16 +47,12 @@ export default function Home() {
     };
   }, []);
 
-  // === useEffect untuk kamera: jalan HANYA saat cameraActive jadi true ===
+  // === Kamera via useEffect (anti-hang) ===
   useEffect(() => {
     if (cameraActive) {
-      // Tunggu 300ms agar elemen #qr-reader benar-benar render
-      const timer = setTimeout(() => {
-        startCameraInternal();
-      }, 300);
+      const timer = setTimeout(() => { startCameraInternal(); }, 300);
       cameraStartRef.current = timer;
     } else {
-      // Saat cameraActive jadi false, stop kamera
       stopCameraInternal();
     }
     return () => {
@@ -120,9 +115,7 @@ export default function Home() {
 
   const validasiLokasi = async () => {
     if (!geoConfig || !geoConfig.enabled) return { allowed: true };
-    if (!navigator.geolocation) {
-      return { allowed: false, message: 'Browser tidak mendukung geolokasi.' };
-    }
+    if (!navigator.geolocation) return { allowed: false, message: 'Browser tidak mendukung geolokasi.' };
     try {
       const position = await new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
@@ -195,123 +188,94 @@ export default function Home() {
     finally { setLoadingQr(false); }
   };
 
-  // === FUNGSI KAMERA DENGAN TIMEOUT & FALLBACK ===
+  // === FUNGSI KAMERA (3 fallback + timeout) ===
   const startCameraInternal = async () => {
-    const logs = [];
-    const log = (m) => { logs.push(m); setCameraDebug(logs.join('\n')); };
-    
-    log('🔍 Inisialisasi kamera...');
-    log('· Html5Qrcode: ' + (typeof Html5Qrcode !== 'undefined' ? '✅' : '❌'));
-    log('· HTTPS: ' + (window.isSecureContext ? '✅' : '❌'));
-    
     setCameraError('');
     setCameraReady(false);
 
     if (typeof Html5Qrcode === 'undefined') {
       setCameraError('❌ Library QR scanner gagal dimuat. Refresh halaman.');
       setCameraActive(false);
-      log('❌ FATAL: Html5Qrcode undefined');
       return;
     }
 
     const readerElement = document.getElementById('qr-reader');
-    log('· Elemen #qr-reader: ' + (readerElement ? '✅' : '❌'));
     if (!readerElement) { 
       setCameraError('Elemen kamera belum siap.'); 
       setCameraActive(false); 
       return; 
     }
 
-    // Cleanup instance lama
     if (html5QrCodeRef.current) {
-      log('· Cleanup instance lama...');
       try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
       html5QrCodeRef.current = null;
     }
 
-    // === COBA 1: Exact environment ===
-    log('🔄 Coba 1: kamera belakang (exact)...');
-    let started = false;
+    // Coba 1: Exact environment
     try {
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
-      
-      // Promise dengan timeout 5 detik
       await Promise.race([
         html5QrCode.start(
           { facingMode: { exact: 'environment' } },
           { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
-          (decodedText) => { log('✅ QR: ' + decodedText); processQrScan(decodedText, 'camera'); },
+          (decodedText) => { processQrScan(decodedText, 'camera'); },
           () => {}
         ),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout 5 detik')), 5000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
       ]);
-      
-      started = true;
-      log('✅ Coba 1 BERHASIL');
       setCameraReady(true);
       setStatus('📷 Kamera aktif. Arahkan QR Code ke kamera.');
       setStatusType('');
+      return;
     } catch (err) {
-      log('❌ Coba 1 gagal: ' + (err.name || '') + ' - ' + (err.message || ''));
-      
-      // === COBA 2: Fallback tanpa exact ===
-      log('🔄 Coba 2: fallback (tanpa exact)...');
-      try {
-        if (html5QrCodeRef.current) {
-          try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
-        }
-        const html5QrCode = new Html5Qrcode('qr-reader');
-        html5QrCodeRef.current = html5QrCode;
-        
-        await Promise.race([
-          html5QrCode.start(
-            { facingMode: 'environment' },
-            { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
-            (decodedText) => { processQrScan(decodedText, 'camera'); },
-            () => {}
-          ),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout 5 detik')), 5000))
-        ]);
-        
-        started = true;
-        log('✅ Coba 2 BERHASIL');
-        setCameraReady(true);
-        setStatus('📷 Kamera aktif. Arahkan QR Code ke kamera.');
-        setStatusType('');
-      } catch (err2) {
-        log('❌ Coba 2 gagal: ' + (err2.name || '') + ' - ' + (err2.message || ''));
-        
-        // === COBA 3: getUserMedia langsung ===
-        log('🔄 Coba 3: getUserMedia langsung...');
-        try {
-          if (html5QrCodeRef.current) {
-            try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
-          }
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-          log('✅ Stream didapat: ' + stream.getVideoTracks()[0].label);
-          
-          const videoElement = document.createElement('video');
-          videoElement.srcObject = stream;
-          videoElement.autoplay = true;
-          videoElement.playsInline = true;
-          videoElement.style.width = '100%';
-          videoElement.style.borderRadius = '12px';
-          
-          readerElement.innerHTML = '';
-          readerElement.appendChild(videoElement);
-          
-          started = true;
-          log('✅ Coba 3 BERHASIL (video element)');
-          setCameraReady(true);
-          setStatus('📷 Kamera aktif (mode fallback).');
-          setStatusType('');
-        } catch (err3) {
-          log('❌ Coba 3 gagal: ' + (err3.name || '') + ' - ' + (err3.message || ''));
-          setCameraError('Tidak dapat mengakses kamera: ' + (err3.name || 'Unknown') + '. Cek izin kamera di pengaturan browser.');
-          setCameraActive(false);
-        }
+      // Lanjut ke fallback
+    }
+
+    // Coba 2: Fallback tanpa exact
+    try {
+      if (html5QrCodeRef.current) {
+        try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
       }
+      const html5QrCode = new Html5Qrcode('qr-reader');
+      html5QrCodeRef.current = html5QrCode;
+      await Promise.race([
+        html5QrCode.start(
+          { facingMode: 'environment' },
+          { fps: 20, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
+          (decodedText) => { processQrScan(decodedText, 'camera'); },
+          () => {}
+        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+      ]);
+      setCameraReady(true);
+      setStatus('📷 Kamera aktif. Arahkan QR Code ke kamera.');
+      setStatusType('');
+      return;
+    } catch (err2) {
+      // Lanjut ke fallback
+    }
+
+    // Coba 3: getUserMedia langsung
+    try {
+      if (html5QrCodeRef.current) {
+        try { await html5QrCodeRef.current.stop(); html5QrCodeRef.current.clear(); } catch (e) {}
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const videoElement = document.createElement('video');
+      videoElement.srcObject = stream;
+      videoElement.autoplay = true;
+      videoElement.playsInline = true;
+      videoElement.style.width = '100%';
+      videoElement.style.borderRadius = '12px';
+      readerElement.innerHTML = '';
+      readerElement.appendChild(videoElement);
+      setCameraReady(true);
+      setStatus('📷 Kamera aktif (mode fallback).');
+      setStatusType('');
+    } catch (err3) {
+      setCameraError('Tidak dapat mengakses kamera: ' + (err3.name || 'Unknown') + '. Cek izin kamera di pengaturan browser.');
+      setCameraActive(false);
     }
   };
 
@@ -323,7 +287,7 @@ export default function Home() {
     setCameraReady(false);
   };
 
-  const handleMulaiScan = () => { setCameraError(''); setCameraDebug(''); setCameraActive(true); };
+  const handleMulaiScan = () => { setCameraError(''); setCameraActive(true); };
   const handleStopScan = () => { setCameraActive(false); };
 
   const handleQrManualSubmit = async (e) => {
@@ -399,12 +363,6 @@ export default function Home() {
                   {cameraReady && <div style={styles.cameraHint}>🙏 Arahkan QR Code ID Umat ke kamera</div>}
                   {!cameraReady && <div style={styles.cameraHintLoading}>⏳ Memulai kamera...</div>}
                   <button onClick={handleStopScan} style={styles.btnStopCamera}>⏹️ Hentikan Kamera</button>
-                </div>
-              )}
-              {cameraDebug && (
-                <div style={styles.debugBox}>
-                  <div style={styles.debugTitle}>🔧 Diagnostik Kamera</div>
-                  <pre style={styles.debugText}>{cameraDebug}</pre>
                 </div>
               )}
               {!cameraActive && (
@@ -487,8 +445,5 @@ const styles = {
   cameraHintLoading: { textAlign: 'center', color: '#8A9A90', fontSize: '14px', fontWeight: '600', marginTop: '12px', marginBottom: '12px', padding: '10px', backgroundColor: '#F0F4F1', borderRadius: '8px' },
   btnStopCamera: { width: '100%', padding: '14px', fontSize: '15px', fontWeight: '600', color: '#C0392B', backgroundColor: '#FFFFFF', border: '2px solid #C0392B', borderRadius: '10px', cursor: 'pointer' },
   manualSection: { marginTop: '20px' },
-  dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' },
-  debugBox: { backgroundColor: '#263238', borderRadius: '10px', padding: '14px', marginTop: '16px', border: '1px solid #546E7A' },
-  debugTitle: { color: '#FFCC80', fontSize: '13px', fontWeight: '700', marginBottom: '8px' },
-  debugText: { color: '#B0BEC5', fontSize: '11px', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6', fontFamily: 'monospace' }
+  dividerText: { textAlign: 'center', color: '#8A9A90', fontSize: '13px', fontStyle: 'italic', marginBottom: '12px' }
 };
