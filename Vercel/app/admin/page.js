@@ -173,8 +173,8 @@ export default function AdminPage() {
           body * { visibility: hidden; }
           .print-area, .print-area * { visibility: visible; }
           .print-area { 
-  transform: scale(0.9); 
-  transform-origin: top left;
+  transform: scale(0.85); 
+  transform-origin: top center;
 }
           .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 6mm; }
           .no-print { display: none !important; }
