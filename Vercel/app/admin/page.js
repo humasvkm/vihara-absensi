@@ -1,11 +1,9 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 
-// ============================================================
-// 🔐 GANTI PIN ADMIN DI SINI
-// ============================================================
 const ADMIN_PIN = '444444';
-// ============================================================
+const APP_URL = 'https://vihara-absensi.vercel.app';
+const QR_API = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + APP_URL;
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -25,12 +23,7 @@ export default function AdminPage() {
 
   const [statistik, setStatistik] = useState(null);
   const [loadingStatistik, setLoadingStatistik] = useState(false);
-  const [filter, setFilter] = useState({ 
-    periode: 'bulan', 
-    bulan: new Date().getMonth() + 1, 
-    tahun: new Date().getFullYear(), 
-    jenisKegiatan: 'all' 
-  });
+  const [filter, setFilter] = useState({ periode: 'bulan', bulan: new Date().getMonth() + 1, tahun: new Date().getFullYear(), jenisKegiatan: 'all' });
 
   const [absensiHariIni, setAbsensiHariIni] = useState([]);
   const [loadingAbsensi, setLoadingAbsensi] = useState(false);
@@ -43,25 +36,14 @@ export default function AdminPage() {
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [geoMsg, setGeoMsg] = useState('');
 
-  // === STATE RANKING ===
   const [rankingData, setRankingData] = useState(null);
   const [loadingRanking, setLoadingRanking] = useState(false);
-  const [rankingFilter, setRankingFilter] = useState({
-    periode: 'bulan',
-    bulan: new Date().getMonth() + 1,
-    tahun: new Date().getFullYear(),
-    jenisKegiatan: 'all',
-    topN: 10
-  });
+  const [rankingFilter, setRankingFilter] = useState({ periode: 'bulan', bulan: new Date().getMonth() + 1, tahun: new Date().getFullYear(), jenisKegiatan: 'all', topN: 10 });
 
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const intervalRef = useRef(null);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (pin === ADMIN_PIN) { setIsAuthenticated(true); setPinError(''); }
-    else { setPinError('PIN salah.'); }
-  };
+  const handleLogin = (e) => { e.preventDefault(); if (pin === ADMIN_PIN) { setIsAuthenticated(true); setPinError(''); } else { setPinError('PIN salah.'); } };
 
   const parseResponse = (data) => {
     if (!data) return null;
@@ -70,128 +52,66 @@ export default function AdminPage() {
     if (data.data !== undefined) return data.data;
     return data;
   };
-
-  const parseSuccess = (data) => {
-    if (!data) return false;
-    if (data.success === true) return true;
-    if (data.data && data.data.success === true) return true;
-    return false;
-  };
-
-  const parseMessage = (data) => {
-    if (!data) return '';
-    if (data.message) return data.message;
-    if (data.data && data.data.message) return data.data.message;
-    return '';
-  };
+  const parseSuccess = (data) => { if (!data) return false; if (data.success === true) return true; if (data.data && data.data.success === true) return true; return false; };
+  const parseMessage = (data) => { if (!data) return ''; if (data.message) return data.message; if (data.data && data.data.message) return data.data.message; return ''; };
 
   const muatKegiatan = async () => {
     setLoadingKegiatan(true);
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAllKegiatan' }) });
-      const data = await res.json();
-      setKegiatanList(Array.isArray(parseResponse(data)) ? parseResponse(data) : []);
-    } catch (error) { console.error(error); setKegiatanList([]); }
-    finally { setLoadingKegiatan(false); }
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAllKegiatan' }) }); const data = await res.json(); setKegiatanList(Array.isArray(parseResponse(data)) ? parseResponse(data) : []); }
+    catch (error) { console.error(error); setKegiatanList([]); } finally { setLoadingKegiatan(false); }
   };
 
   const muatStatistik = async () => {
     setLoadingStatistik(true);
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getStatistikKehadiran', data: filter }) });
-      const data = await res.json();
-      if (parseSuccess(data)) setStatistik(parseResponse(data));
-      else setStatistik(null);
-    } catch (error) { console.error('Error muatStatistik:', error); setStatistik(null); }
-    finally { setLoadingStatistik(false); }
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getStatistikKehadiran', data: filter }) }); const data = await res.json(); if (parseSuccess(data)) setStatistik(parseResponse(data)); else setStatistik(null); }
+    catch (error) { console.error(error); setStatistik(null); } finally { setLoadingStatistik(false); }
   };
 
   const muatAbsensiHariIni = async () => {
     setLoadingAbsensi(true);
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAbsensiHariIni' }) });
-      const data = await res.json();
-      setAbsensiHariIni(Array.isArray(parseResponse(data)) ? parseResponse(data) : []);
-      setLastRefresh(new Date());
-    } catch (error) { console.error('Error muatAbsensiHariIni:', error); setAbsensiHariIni([]); } 
-    finally { setLoadingAbsensi(false); }
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAbsensiHariIni' }) }); const data = await res.json(); setAbsensiHariIni(Array.isArray(parseResponse(data)) ? parseResponse(data) : []); setLastRefresh(new Date()); }
+    catch (error) { console.error(error); setAbsensiHariIni([]); } finally { setLoadingAbsensi(false); }
   };
 
   const kirimRingkasan = async () => {
     if (!confirm('Kirim ringkasan kegiatan hari ini ke Telegram?')) return;
-    setLoadingRingkasan(true);
-    setStatusMsg('Mengirim ringkasan ke Telegram...');
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'kirimRingkasanTelegram' }) });
-      const data = await res.json();
-      setStatusMsg(parseSuccess(data) ? '✅ ' + parseMessage(data) : '❌ ' + parseMessage(data));
-    } catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
-    finally { setLoadingRingkasan(false); }
+    setLoadingRingkasan(true); setStatusMsg('Mengirim ringkasan...');
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'kirimRingkasanTelegram' }) }); const data = await res.json(); setStatusMsg(parseSuccess(data) ? '✅ ' + parseMessage(data) : '❌ ' + parseMessage(data)); }
+    catch (error) { setStatusMsg('❌ Gagal terhubung.'); } finally { setLoadingRingkasan(false); }
   };
 
   const muatGeoConfig = async () => {
     setLoadingGeo(true);
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getGeofencingConfig' }) });
-      const data = await res.json();
-      if (parseSuccess(data)) setGeoConfig(parseResponse(data));
-    } catch (error) { console.error('Error muatGeoConfig:', error); }
-    finally { setLoadingGeo(false); }
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getGeofencingConfig' }) }); const data = await res.json(); if (parseSuccess(data)) setGeoConfig(parseResponse(data)); }
+    catch (error) { console.error(error); } finally { setLoadingGeo(false); }
   };
 
   const simpanGeoConfig = async () => {
-    setLoadingGeo(true);
-    setGeoMsg('Menyimpan konfigurasi...');
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setGeofencingConfig', data: geoConfig }) });
-      const data = await res.json();
-      if (parseSuccess(data)) setGeoMsg('✅ Konfigurasi Geofencing berhasil disimpan!');
-      else setGeoMsg('❌ Gagal: ' + parseMessage(data));
-    } catch (error) { setGeoMsg('❌ Gagal terhubung ke server.'); }
-    finally { setLoadingGeo(false); }
+    setLoadingGeo(true); setGeoMsg('Menyimpan konfigurasi...');
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'setGeofencingConfig', data: geoConfig }) }); const data = await res.json(); if (parseSuccess(data)) setGeoMsg('✅ Konfigurasi Geofencing berhasil disimpan!'); else setGeoMsg('❌ Gagal: ' + parseMessage(data)); }
+    catch (error) { setGeoMsg('❌ Gagal terhubung ke server.'); } finally { setLoadingGeo(false); }
   };
 
   const gunakanLokasiSaya = () => {
     if (!navigator.geolocation) { setGeoMsg('❌ Browser tidak mendukung geolokasi.'); return; }
     setGeoMsg('📍 Sedang mengambil lokasi...');
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setGeoConfig(prev => ({ ...prev, lat: position.coords.latitude, lng: position.coords.longitude }));
-        setGeoMsg('✅ Lokasi berhasil diambil! Klik "Simpan Konfigurasi".');
-      },
-      (error) => {
-        let msg = '❌ Gagal: ';
-        if (error.code === 1) msg += 'Izin lokasi ditolak.';
-        else if (error.code === 2) msg += 'Lokasi tidak tersedia.';
-        else if (error.code === 3) msg += 'Timeout.';
-        else msg += error.message;
-        setGeoMsg(msg);
-      },
+      (position) => { setGeoConfig(prev => ({ ...prev, lat: position.coords.latitude, lng: position.coords.longitude })); setGeoMsg('✅ Lokasi berhasil diambil! Klik "Simpan Konfigurasi".'); },
+      (error) => { let msg = '❌ Gagal: '; if (error.code === 1) msg += 'Izin lokasi ditolak.'; else if (error.code === 2) msg += 'Lokasi tidak tersedia.'; else if (error.code === 3) msg += 'Timeout.'; else msg += error.message; setGeoMsg(msg); },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
-  // === FUNGSI RANKING ===
   const muatRanking = async () => {
     setLoadingRanking(true);
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getRankingUmat', data: rankingFilter }) });
-      const data = await res.json();
-      if (parseSuccess(data)) setRankingData(parseResponse(data));
-      else setRankingData(null);
-    } catch (error) { console.error('Error muatRanking:', error); setRankingData(null); }
-    finally { setLoadingRanking(false); }
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getRankingUmat', data: rankingFilter }) }); const data = await res.json(); if (parseSuccess(data)) setRankingData(parseResponse(data)); else setRankingData(null); }
+    catch (error) { console.error(error); setRankingData(null); } finally { setLoadingRanking(false); }
   };
 
-  const handlePrintRanking = () => {
-    window.print();
-  };
+  const handlePrintRanking = () => { window.print(); };
 
   useEffect(() => {
-    if (isAuthenticated && activeTab === 'live' && autoRefresh) {
-      muatAbsensiHariIni();
-      intervalRef.current = setInterval(() => { muatAbsensiHariIni(); }, 10000);
-    }
+    if (isAuthenticated && activeTab === 'live' && autoRefresh) { muatAbsensiHariIni(); intervalRef.current = setInterval(() => { muatAbsensiHariIni(); }, 10000); }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [isAuthenticated, activeTab, autoRefresh]);
 
@@ -208,38 +128,19 @@ export default function AdminPage() {
     if (!selectedKegiatan || !tanggal) { setStatusMsg('⚠️ Pilih kegiatan dan tanggal.'); return; }
     if (selectedKegiatan === 'CUSTOM' && !customNama.trim()) { setStatusMsg('⚠️ Isi nama kegiatan baru.'); return; }
     setLoading(true); setStatusMsg('Memproses...');
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'aktifkanKegiatan', data: { idKegiatan: selectedKegiatan, customNama, tanggal, waktuMulai, waktuSelesai } }) });
-      const data = await res.json();
-      if (parseSuccess(data)) {
-        setStatusMsg('✅ ' + parseMessage(data));
-        setSelectedKegiatan(''); setCustomNama(''); setWaktuMulai(''); setWaktuSelesai('');
-        muatKegiatan();
-      } else { setStatusMsg('❌ ' + parseMessage(data)); }
-    } catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
-    finally { setLoading(false); }
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'aktifkanKegiatan', data: { idKegiatan: selectedKegiatan, customNama, tanggal, waktuMulai, waktuSelesai } }) }); const data = await res.json(); if (parseSuccess(data)) { setStatusMsg('✅ ' + parseMessage(data)); setSelectedKegiatan(''); setCustomNama(''); setWaktuMulai(''); setWaktuSelesai(''); muatKegiatan(); } else { setStatusMsg('❌ ' + parseMessage(data)); } }
+    catch (error) { setStatusMsg('❌ Gagal terhubung.'); } finally { setLoading(false); }
   };
 
   const handleNonaktifkan = async (idKegiatan, tanggalKegiatan) => {
     if (!confirm('Yakin menonaktifkan kegiatan ini?')) return;
-    try {
-      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'nonaktifkanKegiatan', data: { idKegiatan, tanggal: tanggalKegiatan } }) });
-      const data = await res.json();
-      if (parseSuccess(data)) { setStatusMsg('✅ Kegiatan dinonaktifkan.'); muatKegiatan(); }
-      else { setStatusMsg('❌ ' + parseMessage(data)); }
-    } catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
+    try { const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'nonaktifkanKegiatan', data: { idKegiatan, tanggal: tanggalKegiatan } }) }); const data = await res.json(); if (parseSuccess(data)) { setStatusMsg('✅ Kegiatan dinonaktifkan.'); muatKegiatan(); } else { setStatusMsg('❌ ' + parseMessage(data)); } }
+    catch (error) { setStatusMsg('❌ Gagal terhubung.'); }
   };
 
-  const absensiTersaring = Array.isArray(absensiHariIni) 
-    ? absensiHariIni.filter(a => a.nama && a.nama.toLowerCase().includes(searchNama.toLowerCase()))
-    : [];
+  const absensiTersaring = Array.isArray(absensiHariIni) ? absensiHariIni.filter(a => a.nama && a.nama.toLowerCase().includes(searchNama.toLowerCase())) : [];
+  const formatWaktu = (date) => { if (!date) return '-'; return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
 
-  const formatWaktu = (date) => {
-    if (!date) return '-';
-    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
-  // === LEGEND IKON RANKING ===
   const legendItems = [
     { ikon: '🌟', label: 'Umat Teladan', desc: 'Hadir 100% sesi' },
     { ikon: '⭐', label: 'Umat Aktif', desc: 'Hadir ≥75% sesi' },
@@ -269,79 +170,21 @@ export default function AdminPage() {
 
   return (
     <main style={styles.container}>
-      {/* CSS untuk Print */}
       <style>{`
-  @media print {
-    body * { visibility: hidden; }
-    .print-area, .print-area * { visibility: visible; }
-    .print-area { 
-      position: absolute; 
-      left: 0; 
-      top: 0; 
-      width: 100%; 
-      padding: 10mm; 
-    }
-    .no-print { display: none !important; }
-    
-    @page { 
-      size: A4 portrait; 
-      margin: 10mm 12mm; 
-    }
-    
-    /* Kompak: perkecil font & padding */
-    .print-area h2 { 
-      font-size: 18px !important; 
-      margin: 8px 0 !important; 
-    }
-    .print-area table { 
-      font-size: 11px !important; 
-      width: 100% !important;
-    }
-    .print-area th { 
-      padding: 6px 8px !important; 
-      font-size: 11px !important; 
-    }
-    .print-area td { 
-      padding: 5px 8px !important; 
-      font-size: 11px !important; 
-    }
-    .print-area .kategori-badge { 
-      font-size: 10px !important; 
-      padding: 2px 6px !important; 
-    }
-    .print-area img { 
-      width: 40px !important; 
-      height: 40px !important; 
-    }
-    .print-area .legend-box { 
-      font-size: 10px !important; 
-      padding: 8px !important; 
-      margin-top: 10px !important; 
-    }
-    .print-area .footer-print { 
-      font-size: 9px !important; 
-      margin-top: 12px !important; 
-    }
-    .print-area { 
-  transform: scale(0.9); 
-  transform-origin: top left;
-}
-    /* Cegah tabel terpotong */
-    table { 
-      page-break-inside: auto; 
-    }
-    tr { 
-      page-break-inside: avoid; 
-      page-break-after: auto; 
-    }
-    thead { 
-      display: table-header-group; 
-    }
-    tfoot { 
-      display: table-footer-group; 
-    }
-  }
-`}</style>
+        @media print {
+          body * { visibility: hidden; }
+          .print-area, .print-area * { visibility: visible; }
+          .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 6mm; }
+          .no-print { display: none !important; }
+          @page { size: A4 portrait; margin: 10mm 12mm; }
+          .print-area h2 { font-size: 20px !important; margin: 10px 0 !important; }
+          .print-area table { font-size: 12px !important; }
+          .print-area th { padding: 8px 10px !important; font-size: 12px !important; }
+          .print-area td { padding: 7px 10px !important; font-size: 12px !important; }
+          tr { page-break-inside: avoid; }
+          thead { display: table-header-group; }
+        }
+      `}</style>
 
       <div style={styles.cardWide}>
         <div style={styles.header}>
@@ -467,31 +310,11 @@ export default function AdminPage() {
             {loadingStatistik ? <p style={styles.loading}>Memuat statistik...</p> : statistik ? (
               <div>
                 <div style={styles.statsGrid}>
-                  <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}>
-                    <div style={styles.statValue}>{statistik.totalUmat || 0}</div>
-                    <div style={styles.statLabel}>Total Umat</div>
-                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Di database</div>
-                  </div>
-                  <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #2E7D32'}}>
-                    <div style={styles.statValue}>{statistik.uniqueUmatHadir || 0}</div>
-                    <div style={styles.statLabel}>Umat Hadir (Unik)</div>
-                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Hadir ≥1x</div>
-                  </div>
-                  <div style={{...styles.statCard, backgroundColor: '#E3F2FD', borderLeft: '4px solid #1976D2'}}>
-                    <div style={styles.statValue}>{statistik.partisipasiRate || 0}%</div>
-                    <div style={styles.statLabel}>Tingkat Partisipasi</div>
-                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>% umat terlibat</div>
-                  </div>
-                  <div style={{...styles.statCard, backgroundColor: '#F3E5F5', borderLeft: '4px solid #7B1FA2'}}>
-                    <div style={styles.statValue}>{statistik.avgPerSesi || 0}</div>
-                    <div style={styles.statLabel}>Rata-rata per Sesi</div>
-                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Dari {statistik.jumlahSesi || 0} sesi</div>
-                  </div>
-                  <div style={{...styles.statCard, backgroundColor: '#FFF3E0', borderLeft: '4px solid #E65100'}}>
-                    <div style={styles.statValue}>{statistik.totalHadir || 0}</div>
-                    <div style={styles.statLabel}>Total Kehadiran</div>
-                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Jumlah row absensi</div>
-                  </div>
+                  <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}><div style={styles.statValue}>{statistik.totalUmat || 0}</div><div style={styles.statLabel}>Total Umat</div><div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Di database</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #2E7D32'}}><div style={styles.statValue}>{statistik.uniqueUmatHadir || 0}</div><div style={styles.statLabel}>Umat Hadir (Unik)</div><div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Hadir ≥1x</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#E3F2FD', borderLeft: '4px solid #1976D2'}}><div style={styles.statValue}>{statistik.partisipasiRate || 0}%</div><div style={styles.statLabel}>Tingkat Partisipasi</div><div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>% umat terlibat</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#F3E5F5', borderLeft: '4px solid #7B1FA2'}}><div style={styles.statValue}>{statistik.avgPerSesi || 0}</div><div style={styles.statLabel}>Rata-rata per Sesi</div><div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Dari {statistik.jumlahSesi || 0} sesi</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#FFF3E0', borderLeft: '4px solid #E65100'}}><div style={styles.statValue}>{statistik.totalHadir || 0}</div><div style={styles.statLabel}>Total Kehadiran</div><div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Jumlah row absensi</div></div>
                 </div>
                 {statistik.perKegiatan && Object.keys(statistik.perKegiatan).length > 0 && (
                   <section style={styles.section}>
@@ -502,9 +325,7 @@ export default function AdminPage() {
                 {statistik.perMinggu && Object.keys(statistik.perMinggu).length > 0 && (
                   <section style={styles.section}>
                     <h2 style={styles.sectionTitle}>📅 Kehadiran per Tanggal {filter.periode === 'bulan' ? `(Bulan ${NAMA_BULAN[filter.bulan-1]}/${filter.tahun})` : ''}</h2>
-                    <div style={styles.list}>{Object.entries(statistik.perMinggu).map(([tgl, count]) => (
-                      <div key={tgl} style={styles.listItem}><strong style={styles.listItemTitle}>{tgl}</strong><span style={styles.badge}>{count}</span></div>
-                    ))}</div>
+                    <div style={styles.list}>{Object.entries(statistik.perMinggu).map(([tgl, count]) => (<div key={tgl} style={styles.listItem}><strong style={styles.listItemTitle}>{tgl}</strong><span style={styles.badge}>{count}</span></div>))}</div>
                   </section>
                 )}
                 <section style={styles.section}>
@@ -513,9 +334,7 @@ export default function AdminPage() {
                     <div style={styles.list}>{statistik.topUmat.map((u, idx) => (
                       <div key={idx} style={styles.listItem}>
                         <div style={styles.listItemInfo}>
-                          <strong style={styles.listItemTitle}>
-                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`} {u.nama}
-                          </strong>
+                          <strong style={styles.listItemTitle}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`} {u.nama}</strong>
                           <span style={styles.listItemMeta}>ID: {u.id}</span>
                         </div>
                         <span style={styles.badge}>{u.count}x Hadir</span>
@@ -531,22 +350,19 @@ export default function AdminPage() {
         {/* === TAB RANKING === */}
         {activeTab === 'ranking' && (
           <div>
-            {/* Area yang akan dicetak */}
             <div className="print-area">
-              {/* Header khusus print */}
+              {/* Header */}
               <div style={styles.printHeader}>
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '16px'}}>
-                  <img src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" alt="Logo" style={{width: '60px', height: '60px'}} />
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '12px'}}>
+                  <img src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" alt="Logo" style={{width: '50px', height: '50px'}} />
                   <div style={{textAlign: 'center'}}>
                     <div style={{fontSize: '18px', fontWeight: '700', color: '#5B7060'}}>VIHARA KARUNA MUKTI</div>
                     <div style={{fontSize: '13px', color: '#8A9A90'}}>Bandung</div>
                   </div>
                 </div>
-                <h2 style={{textAlign: 'center', color: '#5B7060', fontSize: '22px', margin: '16px 0 8px 0', borderBottom: '2px solid #D4AF37', paddingBottom: '8px'}}>
-                  🏆 RANKING KEHADIRAN UMAT
-                </h2>
+                <h2 style={{textAlign: 'center', color: '#5B7060', fontSize: '22px', margin: '12px 0 6px 0', borderBottom: '2px solid #D4AF37', paddingBottom: '6px'}}>🏆 RANKING KEHADIRAN UMAT</h2>
                 {rankingData && rankingData.metadata && (
-                  <div style={{textAlign: 'center', color: '#5B7060', fontSize: '14px', marginBottom: '16px'}}>
+                  <div style={{textAlign: 'center', color: '#5B7060', fontSize: '14px', marginBottom: '12px'}}>
                     Periode: <strong>{rankingData.metadata.periodeLabel}</strong> • {rankingData.metadata.jenisLabel}
                   </div>
                 )}
@@ -563,19 +379,11 @@ export default function AdminPage() {
                 </div>
                 <div style={{display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap'}}>
                   <button onClick={muatRanking} disabled={loadingRanking} style={styles.buttonSecondary}>{loadingRanking ? '⏳ Memuat...' : '🔄 Terapkan Filter'}</button>
-                  <button onClick={handlePrintRanking} disabled={!rankingData} style={{...styles.button, backgroundColor: '#0088cc', flex: 1}} disabled={!rankingData || loadingRanking}>🖨️ Cetak / Save PDF</button>
+                  <button onClick={handlePrintRanking} disabled={!rankingData || loadingRanking} style={{...styles.button, backgroundColor: '#0088cc', flex: 1, marginTop: '8px'}}>🖨️ Cetak / Save PDF</button>
                 </div>
               </div>
 
-              {/* Info metadata (muncul saat print) */}
-              {rankingData && rankingData.metadata && (
-                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#8A9A90', marginBottom: '12px', padding: '8px', backgroundColor: '#F0F4F1', borderRadius: '8px'}}>
-                  <span>📊 Total Sesi: <strong>{rankingData.metadata.totalSesi}</strong></span>
-                  <span>👥 Umat Hadir: <strong>{rankingData.metadata.totalUmatHadir}</strong> dari {rankingData.metadata.totalUmatDatabase}</span>
-                </div>
-              )}
-
-              {/* Tabel Ranking */}
+              {/* Tabel Top 10 */}
               {loadingRanking ? <p style={styles.loading}>Memuat ranking...</p> : rankingData && rankingData.ranking ? (
                 <div style={{overflowX: 'auto'}}>
                   <table style={styles.rankingTable}>
@@ -583,27 +391,21 @@ export default function AdminPage() {
                       <tr>
                         <th style={{...styles.th, width: '60px'}}>Peringkat</th>
                         <th style={{...styles.th, textAlign: 'left'}}>Nama Umat</th>
-                        <th style={{...styles.th, width: '100px'}}>ID</th>
-                        <th style={{...styles.th, width: '80px'}}>Hadir</th>
-                        <th style={{...styles.th, width: '80px'}}>Persentase</th>
-                        <th style={{...styles.th, width: '150px'}}>Kategori</th>
+                        <th style={{...styles.th, width: '90px'}}>ID</th>
+                        <th style={{...styles.th, width: '70px'}}>Hadir</th>
+                        <th style={{...styles.th, width: '90px'}}>Persentase</th>
+                        <th style={{...styles.th, width: '140px'}}>Kategori</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rankingData.ranking.map((u, idx) => (
                         <tr key={idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
-                          <td style={{...styles.td, textAlign: 'center', fontSize: '20px'}}>
-                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${u.peringkat}`}
-                          </td>
+                          <td style={{...styles.td, textAlign: 'center', fontSize: '18px'}}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${u.peringkat}`}</td>
                           <td style={{...styles.td, fontWeight: '700', color: '#3D4A42'}}>{u.nama}</td>
                           <td style={{...styles.td, color: '#8A9A90', fontSize: '12px'}}>{u.id}</td>
                           <td style={{...styles.td, textAlign: 'center', fontWeight: '700'}}>{u.count}x</td>
                           <td style={{...styles.td, textAlign: 'center'}}>{u.persentase}%</td>
-                          <td style={styles.td}>
-                            <span style={styles.kategoriBadge}>
-                              {u.ikon} {u.label}
-                            </span>
-                          </td>
+                          <td style={styles.td}><span style={styles.kategoriBadge}>{u.ikon} {u.label}</span></td>
                         </tr>
                       ))}
                     </tbody>
@@ -613,23 +415,59 @@ export default function AdminPage() {
                 <p style={styles.empty}>Klik "Terapkan Filter" untuk memuat ranking.</p>
               )}
 
-              {/* Legend (muncul saat print) */}
-              {rankingData && rankingData.ranking && rankingData.ranking.length > 0 && (
-                <div style={{marginTop: '20px', padding: '12px', backgroundColor: '#FDF6E3', borderRadius: '8px', border: '1px solid #D4AF37'}}>
-                  <div style={{fontSize: '13px', fontWeight: '700', color: '#5B7060', marginBottom: '8px'}}>📖 Keterangan Kategori:</div>
-                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', fontSize: '12px', color: '#5B7060'}}>
-                    {legendItems.map((item, idx) => (
-                      <div key={idx}>{item.ikon} <strong>{item.label}</strong> — {item.desc}</div>
+              {/* === SECTION A: UMAT BARU === */}
+              {rankingData && rankingData.umatBaru && rankingData.umatBaru.length > 0 && (
+                <div style={styles.umatBaruBox}>
+                  <div style={styles.boxTitle}>🌱 UMAT BARU DI PERIODE INI <span style={{fontSize: '12px', fontWeight: '400', color: '#8A9A90'}}>(pertama kali hadir)</span></div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px', fontSize: '13px', color: '#5B7060'}}>
+                    {rankingData.umatBaru.map((u, idx) => (
+                      <div key={idx}>🌱 <strong>{u.nama}</strong> <span style={{color: '#8A9A90', fontSize: '11px'}}>({u.id})</span></div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Footer print */}
+              {/* === SECTION B: STATISTIK RINGKAS === */}
+              {rankingData && rankingData.statistikRingkas && (
+                <div style={styles.statRingkasBox}>
+                  <div style={styles.boxTitle}>📊 RINGKASAN PERIODE</div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', fontSize: '12px', color: '#5B7060', textAlign: 'center'}}>
+                    <div><div style={{fontSize: '20px', fontWeight: '700'}}>{rankingData.statistikRingkas.totalSesi}</div>Total Sesi</div>
+                    <div><div style={{fontSize: '20px', fontWeight: '700'}}>{rankingData.statistikRingkas.totalUmatHadir}/{rankingData.statistikRingkas.totalUmatDatabase}</div>Umat Hadir</div>
+                    <div><div style={{fontSize: '20px', fontWeight: '700'}}>{rankingData.statistikRingkas.partisipasiRate}%</div>Partisipasi</div>
+                    <div><div style={{fontSize: '20px', fontWeight: '700'}}>{rankingData.statistikRingkas.rataPerSesi}</div>Rata-rata/Sesi</div>
+                    <div><div style={{fontSize: '20px', fontWeight: '700', color: '#D4AF37'}}>{rankingData.statistikRingkas.jumlahTeladan}</div>🌟 Teladan</div>
+                    <div><div style={{fontSize: '20px', fontWeight: '700', color: '#2E7D32'}}>{rankingData.statistikRingkas.jumlahAktif}</div>⭐ Aktif</div>
+                    <div><div style={{fontSize: '20px', fontWeight: '700', color: '#1976D2'}}>{rankingData.statistikRingkas.jumlahRutin}</div>🔹 Rutin</div>
+                    <div><div style={{fontSize: '20px', fontWeight: '700', color: '#7B1FA2'}}>{rankingData.statistikRingkas.jumlahBaru}</div>🌱 Baru</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Legend */}
+              {rankingData && rankingData.ranking && rankingData.ranking.length > 0 && (
+                <div style={styles.legendBox}>
+                  <div style={{fontSize: '13px', fontWeight: '700', color: '#5B7060', marginBottom: '6px'}}>📖 Keterangan Kategori:</div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '4px', fontSize: '11px', color: '#5B7060'}}>
+                    {legendItems.map((item, idx) => (<div key={idx}>{item.ikon} <strong>{item.label}</strong> — {item.desc}</div>))}
+                  </div>
+                </div>
+              )}
+
+              {/* === SECTION C: FOOTER DENGAN QR CODE === */}
               {rankingData && rankingData.metadata && (
-                <div style={{marginTop: '24px', textAlign: 'center', fontSize: '11px', color: '#8A9A90', borderTop: '1px solid #E8ECE9', paddingTop: '12px'}}>
-                  <div>Dicetak pada: {rankingData.metadata.tanggalCetak} WIB</div>
-                  <div style={{marginTop: '4px', fontStyle: 'italic'}}>Terima kasih atas partisipasi Bapak/Ibu umat Vihara Karuna Mukti 🙏</div>
+                <div style={styles.footerPrint}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                    <img src={QR_API} alt="QR Absen" style={{width: '70px', height: '70px', border: '1px solid #D4AF37', borderRadius: '6px', padding: '3px', backgroundColor: '#FFFFFF'}} />
+                    <div style={{fontSize: '11px', color: '#5B7060', lineHeight: '1.5'}}>
+                      <strong>Scan untuk absen digital</strong><br />
+                      {APP_URL.replace('https://', '')}
+                    </div>
+                  </div>
+                  <div style={{textAlign: 'right', fontSize: '10px', color: '#8A9A90', lineHeight: '1.6'}}>
+                    <div>Dicetak pada: {rankingData.metadata.tanggalCetak} WIB</div>
+                    <div style={{fontStyle: 'italic', marginTop: '4px'}}>Terima kasih atas partisipasi Bapak/Ibu umat Vihara Karuna Mukti 🙏</div>
+                  </div>
                 </div>
               )}
             </div>
@@ -641,8 +479,7 @@ export default function AdminPage() {
             <section style={styles.section}>
               <h2 style={styles.sectionTitle}>📍 Pengaturan Geofencing (Batas Lokasi)</h2>
               <p style={{...styles.hint, marginTop: 0, marginBottom: '24px', fontStyle: 'normal', color: '#5B7060'}}>
-                Fitur ini membatasi absensi hanya untuk umat yang berada di dalam radius tertentu dari Vihara. 
-                <strong> Default: NONAKTIF</strong> (aman untuk testing).
+                Fitur ini membatasi absensi hanya untuk umat yang berada di dalam radius tertentu dari Vihara. <strong>Default: NONAKTIF</strong> (aman untuk testing).
               </p>
               <div style={styles.formGrid}>
                 <div style={styles.formGroup}>
@@ -744,12 +581,16 @@ const styles = {
   liveMeta: { color: '#8A9A90', fontSize: '13px' },
   liveTime: { color: '#5B7060', fontSize: '18px', fontWeight: '700', fontVariantNumeric: 'tabular-nums' },
   emptyState: { textAlign: 'center', padding: '40px 20px', color: '#8A9A90', fontSize: '15px', fontStyle: 'italic', backgroundColor: '#F0F4F1', borderRadius: '12px' },
-  // === STYLES RANKING ===
-  printHeader: { marginBottom: '20px' },
+  printHeader: { marginBottom: '16px' },
   rankingTable: { width: '100%', borderCollapse: 'collapse', backgroundColor: '#FFFFFF', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' },
-  th: { padding: '14px 12px', backgroundColor: '#5B7060', color: '#FFFFFF', fontSize: '13px', fontWeight: '700', textAlign: 'center', borderBottom: '2px solid #D4AF37' },
-  td: { padding: '12px', fontSize: '14px', borderBottom: '1px solid #E8ECE9', verticalAlign: 'middle' },
+  th: { padding: '10px 10px', backgroundColor: '#5B7060', color: '#FFFFFF', fontSize: '13px', fontWeight: '700', textAlign: 'center', borderBottom: '2px solid #D4AF37' },
+  td: { padding: '9px 10px', fontSize: '13px', borderBottom: '1px solid #E8ECE9', verticalAlign: 'middle' },
   trEven: { backgroundColor: '#FFFFFF' },
   trOdd: { backgroundColor: '#F8FAF9' },
-  kategoriBadge: { display: 'inline-block', padding: '4px 10px', backgroundColor: '#FDF6E3', borderRadius: '12px', fontSize: '12px', fontWeight: '600', color: '#5B7060', border: '1px solid #D4AF37' }
+  kategoriBadge: { display: 'inline-block', padding: '3px 8px', backgroundColor: '#FDF6E3', borderRadius: '12px', fontSize: '11px', fontWeight: '600', color: '#5B7060', border: '1px solid #D4AF37' },
+  umatBaruBox: { marginTop: '16px', padding: '12px', backgroundColor: '#F3E5F5', borderRadius: '8px', border: '1px solid #7B1FA2' },
+  statRingkasBox: { marginTop: '12px', padding: '12px', backgroundColor: '#E3F2FD', borderRadius: '8px', border: '1px solid #1976D2' },
+  boxTitle: { fontSize: '13px', fontWeight: '700', color: '#5B7060', marginBottom: '8px' },
+  legendBox: { marginTop: '12px', padding: '10px', backgroundColor: '#FDF6E3', borderRadius: '8px', border: '1px solid #D4AF37' },
+  footerPrint: { marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #E8ECE9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }
 };
