@@ -2,8 +2,6 @@
 import { useState, useEffect, useRef } from 'react';
 
 const ADMIN_PIN = '444444';
-const APP_URL = 'https://vihara-absensi.vercel.app';
-const QR_API = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + APP_URL;
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -145,7 +143,7 @@ export default function AdminPage() {
     { ikon: '🌟', label: 'Umat Teladan', desc: 'Hadir 100% sesi' },
     { ikon: '⭐', label: 'Umat Aktif', desc: 'Hadir ≥75% sesi' },
     { ikon: '🔹', label: 'Umat Rutin', desc: 'Hadir ≥50% sesi' },
-    { ikon: '🌱', label: 'Umat Baru', desc: 'Hadir 1x di periode ini' }
+    { ikon: '🌱', label: 'Wajah Baru', desc: 'Terdaftar di periode ini (kotak terpisah)' }
   ];
 
   if (!isAuthenticated) {
@@ -415,15 +413,18 @@ export default function AdminPage() {
                 <p style={styles.empty}>Klik "Terapkan Filter" untuk memuat ranking.</p>
               )}
 
-              {/* === SECTION A: UMAT BARU === */}
+              {/* === SECTION A: WAJAH BARU (umat baru terdaftar) === */}
               {rankingData && rankingData.umatBaru && rankingData.umatBaru.length > 0 && (
                 <div style={styles.umatBaruBox}>
-                  <div style={styles.boxTitle}>🌱 UMAT BARU DI PERIODE INI <span style={{fontSize: '12px', fontWeight: '400', color: '#8A9A90'}}>(pertama kali hadir)</span></div>
-                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px', fontSize: '13px', color: '#5B7060'}}>
+                  <div style={styles.boxTitle}>🌱 WAJAH BARU — TERDAFTAR DI PERIODE INI</div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '4px', fontSize: '12px', color: '#5B7060'}}>
                     {rankingData.umatBaru.map((u, idx) => (
-                      <div key={idx}>🌱 <strong>{u.nama}</strong> <span style={{color: '#8A9A90', fontSize: '11px'}}>({u.id})</span></div>
+                      <div key={idx}>🌱 <strong>{u.nama}</strong> <span style={{color: '#8A9A90', fontSize: '10px'}}>(daftar {u.tanggalDaftar})</span></div>
                     ))}
                   </div>
+                  {rankingData.umatBaruSisa > 0 && (
+                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '6px', fontStyle: 'italic'}}>… dan {rankingData.umatBaruSisa} wajah baru lainnya. Selamat datang di keluarga besar Vihara Karuna Mukti! 🙏</div>
+                  )}
                 </div>
               )}
 
@@ -454,25 +455,15 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* === SECTION C: FOOTER DENGAN QR CODE === */}
+              {/* === SECTION C: FOOTER === */}
               {rankingData && rankingData.metadata && (
-                <div style={styles.footerPrint}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-                    <img src={QR_API} alt="QR Absen" style={{width: '70px', height: '70px', border: '1px solid #D4AF37', borderRadius: '6px', padding: '3px', backgroundColor: '#FFFFFF'}} />
-                    <div style={{fontSize: '11px', color: '#5B7060', lineHeight: '1.5'}}>
-                      <strong>Scan untuk absen digital</strong><br />
-                      {APP_URL.replace('https://', '')}
-                    </div>
-                  </div>
-                  <div style={{textAlign: 'right', fontSize: '10px', color: '#8A9A90', lineHeight: '1.6'}}>
+                <div style={{...styles.footerPrint, justifyContent: 'center', textAlign: 'center'}}>
+                  <div style={{fontSize: '10px', color: '#8A9A90', lineHeight: '1.6'}}>
                     <div>Dicetak pada: {rankingData.metadata.tanggalCetak} WIB</div>
                     <div style={{fontStyle: 'italic', marginTop: '4px'}}>Terima kasih atas partisipasi Bapak/Ibu umat Vihara Karuna Mukti 🙏</div>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        )}
 
         {activeTab === 'geofencing' && (
           <div>
