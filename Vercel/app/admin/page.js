@@ -8,7 +8,7 @@ export default function AdminPage() {
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [activeTab, setActiveTab] = useState('live');
-  
+
   const [kegiatanList, setKegiatanList] = useState([]);
   const [loadingKegiatan, setLoadingKegiatan] = useState(false);
   const [selectedKegiatan, setSelectedKegiatan] = useState('');
@@ -345,11 +345,9 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* === TAB RANKING === */}
         {activeTab === 'ranking' && (
           <div>
             <div className="print-area">
-              {/* Header */}
               <div style={styles.printHeader}>
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '12px'}}>
                   <img src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" alt="Logo" style={{width: '50px', height: '50px'}} />
@@ -366,12 +364,11 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* Filter (tidak muncul saat print) */}
               <div className="no-print" style={styles.section}>
                 <h2 style={styles.sectionTitle}>🔍 Filter Ranking</h2>
                 <div style={styles.filterGrid}>
                   <div style={styles.formGroup}><label style={styles.label}>Periode</label><select value={rankingFilter.periode} onChange={(e) => setRankingFilter({...rankingFilter, periode: e.target.value})} style={styles.select}><option value="minggu">Minggu Ini</option><option value="bulan">Bulan Ini</option><option value="tahun">Tahun Ini</option></select></div>
-                  {rankingFilter.periode === 'bulan' && (<div style={styles.formGroup}><label style={styles.label}>Bulan</label><select value={rankingFilter.bulan} onChange={(e) => setRankingFilter({...rankingFilter, bulan: parseInt(e.target.value)})} style={styles.select}>{NAMA_BULAN.map((n, i) => <option key={i} value={i+1}>{n}</option>)}</select></div>)}
+                  {rankingFilter.periode === 'bulan' && (<div style={styles.formGroup}><label style={styles.label}>Bulan</label><select value={rankingFilter.bulan} onChange={(e) => setRankingFilter({...rankingFilter, bulan: parseInt(e.target.value)})} style={styles.select}>{NAMA_BULAN.map((n, i) => n), i => <option key={i} value={i+1}>{n}</option>)}</select></div>)}
                   <div style={styles.formGroup}><label style={styles.label}>Tahun</label><select value={rankingFilter.tahun} onChange={(e) => setRankingFilter({...rankingFilter, tahun: parseInt(e.target.value)})} style={styles.select}>{[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select></div>
                   <div style={styles.formGroup}><label style={styles.label}>Jenis Kegiatan</label><select value={rankingFilter.jenisKegiatan} onChange={(e) => setRankingFilter({...rankingFilter, jenisKegiatan: e.target.value})} style={styles.select}><option value="all">Semua</option><option value="minggu">Puja Bakti</option><option value="rabu">Meditasi</option></select></div>
                 </div>
@@ -381,7 +378,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Tabel Top 10 */}
               {loadingRanking ? <p style={styles.loading}>Memuat ranking...</p> : rankingData && rankingData.ranking ? (
                 <div style={{overflowX: 'auto'}}>
                   <table style={styles.rankingTable}>
@@ -413,7 +409,6 @@ export default function AdminPage() {
                 <p style={styles.empty}>Klik "Terapkan Filter" untuk memuat ranking.</p>
               )}
 
-              {/* === SECTION A: WAJAH BARU (umat baru terdaftar) === */}
               {rankingData && rankingData.umatBaru && rankingData.umatBaru.length > 0 && (
                 <div style={styles.umatBaruBox}>
                   <div style={styles.boxTitle}>🌱 WAJAH BARU — TERDAFTAR DI PERIODE INI</div>
@@ -428,7 +423,6 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* === SECTION B: STATISTIK RINGKAS === */}
               {rankingData && rankingData.statistikRingkas && (
                 <div style={styles.statRingkasBox}>
                   <div style={styles.boxTitle}>📊 RINGKASAN PERIODE</div>
@@ -445,7 +439,6 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Legend */}
               {rankingData && rankingData.ranking && rankingData.ranking.length > 0 && (
                 <div style={styles.legendBox}>
                   <div style={{fontSize: '13px', fontWeight: '700', color: '#5B7060', marginBottom: '6px'}}>📖 Keterangan Kategori:</div>
@@ -455,7 +448,6 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* === SECTION C: FOOTER === */}
               {rankingData && rankingData.metadata && (
                 <div style={{...styles.footerPrint, justifyContent: 'center', textAlign: 'center'}}>
                   <div style={{fontSize: '10px', color: '#8A9A90', lineHeight: '1.6'}}>
@@ -464,6 +456,9 @@ export default function AdminPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
 
         {activeTab === 'geofencing' && (
           <div>
