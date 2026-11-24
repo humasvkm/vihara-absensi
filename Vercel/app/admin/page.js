@@ -172,6 +172,10 @@ export default function AdminPage() {
         @media print {
           body * { visibility: hidden; }
           .print-area, .print-area * { visibility: visible; }
+          .print-area { 
+  transform: scale(0.9); 
+  transform-origin: top left;
+}
           .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 6mm; }
           .no-print { display: none !important; }
           @page { size: A4 portrait; margin: 10mm 12mm; }
