@@ -2,9 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 
 // ============================================================
-// 🔐 GANTI PIN ADMIN DI SINI (6 digit angka)
+// 🔐 GANTI PIN ADMIN DI SINI
 // ============================================================
-const ADMIN_PIN = '444444';  // <-- GANTI ANGKA INI SESUKA ANDA
+const ADMIN_PIN = '444444';
 // ============================================================
 
 export default function AdminPage() {
@@ -42,6 +42,17 @@ export default function AdminPage() {
   const [geoConfig, setGeoConfig] = useState({ enabled: false, lat: -6.926116650622637, lng: 107.60863387231466, radius: 100 });
   const [loadingGeo, setLoadingGeo] = useState(false);
   const [geoMsg, setGeoMsg] = useState('');
+
+  // === STATE RANKING ===
+  const [rankingData, setRankingData] = useState(null);
+  const [loadingRanking, setLoadingRanking] = useState(false);
+  const [rankingFilter, setRankingFilter] = useState({
+    periode: 'bulan',
+    bulan: new Date().getMonth() + 1,
+    tahun: new Date().getFullYear(),
+    jenisKegiatan: 'all',
+    topN: 10
+  });
 
   const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const intervalRef = useRef(null);
@@ -141,18 +152,15 @@ export default function AdminPage() {
   };
 
   const gunakanLokasiSaya = () => {
-    if (!navigator.geolocation) {
-      setGeoMsg('❌ Browser Anda tidak mendukung fitur geolokasi.');
-      return;
-    }
-    setGeoMsg('📍 Sedang mengambil lokasi Anda...');
+    if (!navigator.geolocation) { setGeoMsg('❌ Browser tidak mendukung geolokasi.'); return; }
+    setGeoMsg('📍 Sedang mengambil lokasi...');
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setGeoConfig(prev => ({ ...prev, lat: position.coords.latitude, lng: position.coords.longitude }));
-        setGeoMsg('✅ Lokasi berhasil diambil! Silakan klik "Simpan Konfigurasi".');
+        setGeoMsg('✅ Lokasi berhasil diambil! Klik "Simpan Konfigurasi".');
       },
       (error) => {
-        let msg = '❌ Gagal mengambil lokasi: ';
+        let msg = '❌ Gagal: ';
         if (error.code === 1) msg += 'Izin lokasi ditolak.';
         else if (error.code === 2) msg += 'Lokasi tidak tersedia.';
         else if (error.code === 3) msg += 'Timeout.';
@@ -161,6 +169,22 @@ export default function AdminPage() {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  // === FUNGSI RANKING ===
+  const muatRanking = async () => {
+    setLoadingRanking(true);
+    try {
+      const res = await fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getRankingUmat', data: rankingFilter }) });
+      const data = await res.json();
+      if (parseSuccess(data)) setRankingData(parseResponse(data));
+      else setRankingData(null);
+    } catch (error) { console.error('Error muatRanking:', error); setRankingData(null); }
+    finally { setLoadingRanking(false); }
+  };
+
+  const handlePrintRanking = () => {
+    window.print();
   };
 
   useEffect(() => {
@@ -176,6 +200,7 @@ export default function AdminPage() {
     if (activeTab === 'jadwal') muatKegiatan();
     else if (activeTab === 'dashboard') muatStatistik();
     else if (activeTab === 'geofencing') muatGeoConfig();
+    else if (activeTab === 'ranking') muatRanking();
   }, [isAuthenticated, activeTab]);
 
   const handleAktifkan = async (e) => {
@@ -214,6 +239,14 @@ export default function AdminPage() {
     return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
+  // === LEGEND IKON RANKING ===
+  const legendItems = [
+    { ikon: '🌟', label: 'Umat Teladan', desc: 'Hadir 100% sesi' },
+    { ikon: '⭐', label: 'Umat Aktif', desc: 'Hadir ≥75% sesi' },
+    { ikon: '🔹', label: 'Umat Rutin', desc: 'Hadir ≥50% sesi' },
+    { ikon: '🌱', label: 'Umat Baru', desc: 'Hadir 1x di periode ini' }
+  ];
+
   if (!isAuthenticated) {
     return (
       <main style={styles.container}>
@@ -236,6 +269,17 @@ export default function AdminPage() {
 
   return (
     <main style={styles.container}>
+      {/* CSS untuk Print */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .print-area, .print-area * { visibility: visible; }
+          .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
+          .no-print { display: none !important; }
+          @page { size: A4 portrait; margin: 15mm; }
+        }
+      `}</style>
+
       <div style={styles.cardWide}>
         <div style={styles.header}>
           <div>
@@ -245,10 +289,11 @@ export default function AdminPage() {
           <button onClick={() => setIsAuthenticated(false)} style={styles.logoutBtn}>🚪 Keluar</button>
         </div>
 
-        <div style={styles.tabs}>
+        <div style={styles.tabs} className="no-print">
           <button onClick={() => setActiveTab('live')} style={activeTab === 'live' ? styles.tabActive : styles.tab}>👥 Live Absensi</button>
           <button onClick={() => setActiveTab('jadwal')} style={activeTab === 'jadwal' ? styles.tabActive : styles.tab}>📅 Jadwal</button>
           <button onClick={() => setActiveTab('dashboard')} style={activeTab === 'dashboard' ? styles.tabActive : styles.tab}>📊 Dashboard</button>
+          <button onClick={() => setActiveTab('ranking')} style={activeTab === 'ranking' ? styles.tabActive : styles.tab}>🏆 Ranking</button>
           <button onClick={() => setActiveTab('geofencing')} style={activeTab === 'geofencing' ? styles.tabActive : styles.tab}>📍 Geofencing</button>
         </div>
 
@@ -359,9 +404,31 @@ export default function AdminPage() {
             {loadingStatistik ? <p style={styles.loading}>Memuat statistik...</p> : statistik ? (
               <div>
                 <div style={styles.statsGrid}>
-                  <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}><div style={styles.statValue}>{statistik.totalUmat || 0}</div><div style={styles.statLabel}>Total Umat</div></div>
-                  <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #5B7060'}}><div style={styles.statValue}>{statistik.totalHadir || 0}</div><div style={styles.statLabel}>Kehadiran</div></div>
-                  <div style={{...styles.statCard, backgroundColor: '#E8EEF5', borderLeft: '4px solid #7B9EBD'}}><div style={styles.statValue}>{statistik.rate || 0}%</div><div style={styles.statLabel}>Tingkat Hadir</div></div>
+                  <div style={{...styles.statCard, backgroundColor: '#FDF6E3', borderLeft: '4px solid #D4AF37'}}>
+                    <div style={styles.statValue}>{statistik.totalUmat || 0}</div>
+                    <div style={styles.statLabel}>Total Umat</div>
+                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Di database</div>
+                  </div>
+                  <div style={{...styles.statCard, backgroundColor: '#E8F5E9', borderLeft: '4px solid #2E7D32'}}>
+                    <div style={styles.statValue}>{statistik.uniqueUmatHadir || 0}</div>
+                    <div style={styles.statLabel}>Umat Hadir (Unik)</div>
+                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Hadir ≥1x</div>
+                  </div>
+                  <div style={{...styles.statCard, backgroundColor: '#E3F2FD', borderLeft: '4px solid #1976D2'}}>
+                    <div style={styles.statValue}>{statistik.partisipasiRate || 0}%</div>
+                    <div style={styles.statLabel}>Tingkat Partisipasi</div>
+                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>% umat terlibat</div>
+                  </div>
+                  <div style={{...styles.statCard, backgroundColor: '#F3E5F5', borderLeft: '4px solid #7B1FA2'}}>
+                    <div style={styles.statValue}>{statistik.avgPerSesi || 0}</div>
+                    <div style={styles.statLabel}>Rata-rata per Sesi</div>
+                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Dari {statistik.jumlahSesi || 0} sesi</div>
+                  </div>
+                  <div style={{...styles.statCard, backgroundColor: '#FFF3E0', borderLeft: '4px solid #E65100'}}>
+                    <div style={styles.statValue}>{statistik.totalHadir || 0}</div>
+                    <div style={styles.statLabel}>Total Kehadiran</div>
+                    <div style={{fontSize: '11px', color: '#8A9A90', marginTop: '4px'}}>Jumlah row absensi</div>
+                  </div>
                 </div>
                 {statistik.perKegiatan && Object.keys(statistik.perKegiatan).length > 0 && (
                   <section style={styles.section}>
@@ -372,17 +439,137 @@ export default function AdminPage() {
                 {statistik.perMinggu && Object.keys(statistik.perMinggu).length > 0 && (
                   <section style={styles.section}>
                     <h2 style={styles.sectionTitle}>📅 Kehadiran per Tanggal {filter.periode === 'bulan' ? `(Bulan ${NAMA_BULAN[filter.bulan-1]}/${filter.tahun})` : ''}</h2>
-                    <div style={styles.list}>{Object.entries(statistik.perMinggu).map(([tgl, count]) => (<div key={tgl} style={styles.listItem}><strong style={styles.listItemTitle}>{tgl}</strong><span style={styles.badge}>{count}</span></div>))}</div>
+                    <div style={styles.list}>{Object.entries(statistik.perMinggu).map(([tgl, count]) => (
+                      <div key={tgl} style={styles.listItem}><strong style={styles.listItemTitle}>{tgl}</strong><span style={styles.badge}>{count}</span></div>
+                    ))}</div>
                   </section>
                 )}
                 <section style={styles.section}>
-                  <h2 style={styles.sectionTitle}>🏆 Ranking Umat Teraktif (Top 10)</h2>
+                  <h2 style={styles.sectionTitle}>🏆 Top 10 Umat Teraktif</h2>
                   {statistik.topUmat && statistik.topUmat.length === 0 ? <p style={styles.empty}>Belum ada data.</p> : (
-                    <div style={styles.list}>{statistik.topUmat.map((u, idx) => (<div key={idx} style={styles.listItem}><div style={styles.listItemInfo}><strong style={styles.listItemTitle}>#{idx + 1} {u.nama}</strong><span style={styles.listItemMeta}>ID: {u.id}</span></div><span style={styles.badge}>{u.count}x Hadir</span></div>))}</div>
+                    <div style={styles.list}>{statistik.topUmat.map((u, idx) => (
+                      <div key={idx} style={styles.listItem}>
+                        <div style={styles.listItemInfo}>
+                          <strong style={styles.listItemTitle}>
+                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`} {u.nama}
+                          </strong>
+                          <span style={styles.listItemMeta}>ID: {u.id}</span>
+                        </div>
+                        <span style={styles.badge}>{u.count}x Hadir</span>
+                      </div>
+                    ))}</div>
                   )}
                 </section>
               </div>
             ) : <p style={styles.empty}>Klik "Terapkan Filter" untuk memuat statistik.</p>}
+          </div>
+        )}
+
+        {/* === TAB RANKING === */}
+        {activeTab === 'ranking' && (
+          <div>
+            {/* Area yang akan dicetak */}
+            <div className="print-area">
+              {/* Header khusus print */}
+              <div style={styles.printHeader}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '16px'}}>
+                  <img src="https://lh3.googleusercontent.com/d/1XAFp_h5DcJzjLW63Wq0oiQfGGHSL18sG=s0" alt="Logo" style={{width: '60px', height: '60px'}} />
+                  <div style={{textAlign: 'center'}}>
+                    <div style={{fontSize: '18px', fontWeight: '700', color: '#5B7060'}}>VIHARA KARUNA MUKTI</div>
+                    <div style={{fontSize: '13px', color: '#8A9A90'}}>Bandung</div>
+                  </div>
+                </div>
+                <h2 style={{textAlign: 'center', color: '#5B7060', fontSize: '22px', margin: '16px 0 8px 0', borderBottom: '2px solid #D4AF37', paddingBottom: '8px'}}>
+                  🏆 RANKING KEHADIRAN UMAT
+                </h2>
+                {rankingData && rankingData.metadata && (
+                  <div style={{textAlign: 'center', color: '#5B7060', fontSize: '14px', marginBottom: '16px'}}>
+                    Periode: <strong>{rankingData.metadata.periodeLabel}</strong> • {rankingData.metadata.jenisLabel}
+                  </div>
+                )}
+              </div>
+
+              {/* Filter (tidak muncul saat print) */}
+              <div className="no-print" style={styles.section}>
+                <h2 style={styles.sectionTitle}>🔍 Filter Ranking</h2>
+                <div style={styles.filterGrid}>
+                  <div style={styles.formGroup}><label style={styles.label}>Periode</label><select value={rankingFilter.periode} onChange={(e) => setRankingFilter({...rankingFilter, periode: e.target.value})} style={styles.select}><option value="minggu">Minggu Ini</option><option value="bulan">Bulan Ini</option><option value="tahun">Tahun Ini</option></select></div>
+                  {rankingFilter.periode === 'bulan' && (<div style={styles.formGroup}><label style={styles.label}>Bulan</label><select value={rankingFilter.bulan} onChange={(e) => setRankingFilter({...rankingFilter, bulan: parseInt(e.target.value)})} style={styles.select}>{NAMA_BULAN.map((n, i) => <option key={i} value={i+1}>{n}</option>)}</select></div>)}
+                  <div style={styles.formGroup}><label style={styles.label}>Tahun</label><select value={rankingFilter.tahun} onChange={(e) => setRankingFilter({...rankingFilter, tahun: parseInt(e.target.value)})} style={styles.select}>{[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select></div>
+                  <div style={styles.formGroup}><label style={styles.label}>Jenis Kegiatan</label><select value={rankingFilter.jenisKegiatan} onChange={(e) => setRankingFilter({...rankingFilter, jenisKegiatan: e.target.value})} style={styles.select}><option value="all">Semua</option><option value="minggu">Puja Bakti</option><option value="rabu">Meditasi</option></select></div>
+                </div>
+                <div style={{display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap'}}>
+                  <button onClick={muatRanking} disabled={loadingRanking} style={styles.buttonSecondary}>{loadingRanking ? '⏳ Memuat...' : '🔄 Terapkan Filter'}</button>
+                  <button onClick={handlePrintRanking} disabled={!rankingData} style={{...styles.button, backgroundColor: '#0088cc', flex: 1}} disabled={!rankingData || loadingRanking}>🖨️ Cetak / Save PDF</button>
+                </div>
+              </div>
+
+              {/* Info metadata (muncul saat print) */}
+              {rankingData && rankingData.metadata && (
+                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#8A9A90', marginBottom: '12px', padding: '8px', backgroundColor: '#F0F4F1', borderRadius: '8px'}}>
+                  <span>📊 Total Sesi: <strong>{rankingData.metadata.totalSesi}</strong></span>
+                  <span>👥 Umat Hadir: <strong>{rankingData.metadata.totalUmatHadir}</strong> dari {rankingData.metadata.totalUmatDatabase}</span>
+                </div>
+              )}
+
+              {/* Tabel Ranking */}
+              {loadingRanking ? <p style={styles.loading}>Memuat ranking...</p> : rankingData && rankingData.ranking ? (
+                <div style={{overflowX: 'auto'}}>
+                  <table style={styles.rankingTable}>
+                    <thead>
+                      <tr>
+                        <th style={{...styles.th, width: '60px'}}>Peringkat</th>
+                        <th style={{...styles.th, textAlign: 'left'}}>Nama Umat</th>
+                        <th style={{...styles.th, width: '100px'}}>ID</th>
+                        <th style={{...styles.th, width: '80px'}}>Hadir</th>
+                        <th style={{...styles.th, width: '80px'}}>Persentase</th>
+                        <th style={{...styles.th, width: '150px'}}>Kategori</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rankingData.ranking.map((u, idx) => (
+                        <tr key={idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                          <td style={{...styles.td, textAlign: 'center', fontSize: '20px'}}>
+                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${u.peringkat}`}
+                          </td>
+                          <td style={{...styles.td, fontWeight: '700', color: '#3D4A42'}}>{u.nama}</td>
+                          <td style={{...styles.td, color: '#8A9A90', fontSize: '12px'}}>{u.id}</td>
+                          <td style={{...styles.td, textAlign: 'center', fontWeight: '700'}}>{u.count}x</td>
+                          <td style={{...styles.td, textAlign: 'center'}}>{u.persentase}%</td>
+                          <td style={styles.td}>
+                            <span style={styles.kategoriBadge}>
+                              {u.ikon} {u.label}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={styles.empty}>Klik "Terapkan Filter" untuk memuat ranking.</p>
+              )}
+
+              {/* Legend (muncul saat print) */}
+              {rankingData && rankingData.ranking && rankingData.ranking.length > 0 && (
+                <div style={{marginTop: '20px', padding: '12px', backgroundColor: '#FDF6E3', borderRadius: '8px', border: '1px solid #D4AF37'}}>
+                  <div style={{fontSize: '13px', fontWeight: '700', color: '#5B7060', marginBottom: '8px'}}>📖 Keterangan Kategori:</div>
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', fontSize: '12px', color: '#5B7060'}}>
+                    {legendItems.map((item, idx) => (
+                      <div key={idx}>{item.ikon} <strong>{item.label}</strong> — {item.desc}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer print */}
+              {rankingData && rankingData.metadata && (
+                <div style={{marginTop: '24px', textAlign: 'center', fontSize: '11px', color: '#8A9A90', borderTop: '1px solid #E8ECE9', paddingTop: '12px'}}>
+                  <div>Dicetak pada: {rankingData.metadata.tanggalCetak} WIB</div>
+                  <div style={{marginTop: '4px', fontStyle: 'italic'}}>Terima kasih atas partisipasi Bapak/Ibu umat Vihara Karuna Mukti 🙏</div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -434,8 +621,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {statusMsg && activeTab !== 'jadwal' && activeTab !== 'geofencing' && <p style={styles.status}>{statusMsg}</p>}
-        <a href="/" style={styles.link}>← Kembali ke Halaman Absensi</a>
+        {statusMsg && activeTab !== 'jadwal' && activeTab !== 'geofencing' && activeTab !== 'ranking' && <p style={styles.status}>{statusMsg}</p>}
+        <a href="/" style={styles.link} className="no-print">← Kembali ke Halaman Absensi</a>
       </div>
     </main>
   );
@@ -479,7 +666,7 @@ const styles = {
   link: { display: 'block', textAlign: 'center', marginTop: '24px', color: '#5B7060', textDecoration: 'none', fontWeight: '600' },
   loading: { color: '#8A9A90', fontStyle: 'italic', padding: '16px' },
   empty: { color: '#8A9A90', fontStyle: 'italic', padding: '16px', textAlign: 'center' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '32px' },
   statCard: { padding: '24px', borderRadius: '12px', textAlign: 'center' },
   statValue: { fontSize: '42px', fontWeight: '700', color: '#5B7060', marginBottom: '8px' },
   statLabel: { fontSize: '14px', color: '#8A9A90', fontWeight: '500' },
@@ -493,5 +680,13 @@ const styles = {
   liveNama: { color: '#3D4A42', fontSize: '16px', fontWeight: '700' },
   liveMeta: { color: '#8A9A90', fontSize: '13px' },
   liveTime: { color: '#5B7060', fontSize: '18px', fontWeight: '700', fontVariantNumeric: 'tabular-nums' },
-  emptyState: { textAlign: 'center', padding: '40px 20px', color: '#8A9A90', fontSize: '15px', fontStyle: 'italic', backgroundColor: '#F0F4F1', borderRadius: '12px' }
+  emptyState: { textAlign: 'center', padding: '40px 20px', color: '#8A9A90', fontSize: '15px', fontStyle: 'italic', backgroundColor: '#F0F4F1', borderRadius: '12px' },
+  // === STYLES RANKING ===
+  printHeader: { marginBottom: '20px' },
+  rankingTable: { width: '100%', borderCollapse: 'collapse', backgroundColor: '#FFFFFF', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' },
+  th: { padding: '14px 12px', backgroundColor: '#5B7060', color: '#FFFFFF', fontSize: '13px', fontWeight: '700', textAlign: 'center', borderBottom: '2px solid #D4AF37' },
+  td: { padding: '12px', fontSize: '14px', borderBottom: '1px solid #E8ECE9', verticalAlign: 'middle' },
+  trEven: { backgroundColor: '#FFFFFF' },
+  trOdd: { backgroundColor: '#F8FAF9' },
+  kategoriBadge: { display: 'inline-block', padding: '4px 10px', backgroundColor: '#FDF6E3', borderRadius: '12px', fontSize: '12px', fontWeight: '600', color: '#5B7060', border: '1px solid #D4AF37' }
 };
