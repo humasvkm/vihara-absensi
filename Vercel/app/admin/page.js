@@ -322,7 +322,10 @@ export default function AdminPage() {
       font-size: 9px !important; 
       margin-top: 12px !important; 
     }
-    
+    .print-area { 
+  transform: scale(0.9); 
+  transform-origin: top left;
+}
     /* Cegah tabel terpotong */
     table { 
       page-break-inside: auto; 
