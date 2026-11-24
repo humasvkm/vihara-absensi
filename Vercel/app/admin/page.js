@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 
-const ADMIN_PIN = '444444';
+const ADMIN_PIN = '123456';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
