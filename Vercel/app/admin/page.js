@@ -2,6 +2,14 @@
 import { useState, useEffect, useRef } from 'react';
 
 const ADMIN_PIN = '123456';
+// Tahun filter: dari tahun mulai dipakai s/d 3 tahun ke depan (otomatis menyesuaikan)
+const TAHUN_MULAI = 2026;
+const TAHUN_OPTIONS = (() => {
+  const akhir = new Date().getFullYear() + 3;
+  const list = [];
+  for (let y = TAHUN_MULAI; y <= akhir; y++) list.push(y);
+  return list;
+})();
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -304,7 +312,7 @@ export default function AdminPage() {
               <div style={styles.filterGrid}>
                 <div style={styles.formGroup}><label style={styles.label}>Periode</label><select value={filter.periode} onChange={(e) => setFilter({...filter, periode: e.target.value})} style={styles.select}><option value="minggu">Minggu Ini</option><option value="bulan">Bulan Ini</option><option value="tahun">Tahun Ini</option></select></div>
                 {filter.periode === 'bulan' && (<div style={styles.formGroup}><label style={styles.label}>Bulan</label><select value={filter.bulan} onChange={(e) => setFilter({...filter, bulan: parseInt(e.target.value)})} style={styles.select}>{NAMA_BULAN.map((n, i) => <option key={i} value={i+1}>{n}</option>)}</select></div>)}
-                <div style={styles.formGroup}><label style={styles.label}>Tahun</label><select value={filter.tahun} onChange={(e) => setFilter({...filter, tahun: parseInt(e.target.value)})} style={styles.select}>{[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select></div>
+                <div style={styles.formGroup}><label style={styles.label}>Tahun</label><select value={filter.tahun} onChange={(e) => setFilter({...filter, tahun: parseInt(e.target.value)})} style={styles.select}>{TAHUN_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
                 <div style={styles.formGroup}><label style={styles.label}>Jenis</label><select value={filter.jenisKegiatan} onChange={(e) => setFilter({...filter, jenisKegiatan: e.target.value})} style={styles.select}><option value="all">Semua</option><option value="minggu">Puja Bakti</option><option value="rabu">Meditasi</option></select></div>
               </div>
               <button onClick={muatStatistik} style={styles.buttonSecondary}>🔄 Terapkan Filter</button>
@@ -373,7 +381,7 @@ export default function AdminPage() {
                 <div style={styles.filterGrid}>
                   <div style={styles.formGroup}><label style={styles.label}>Periode</label><select value={rankingFilter.periode} onChange={(e) => setRankingFilter({...rankingFilter, periode: e.target.value})} style={styles.select}><option value="minggu">Minggu Ini</option><option value="bulan">Bulan Ini</option><option value="tahun">Tahun Ini</option></select></div>
                   {rankingFilter.periode === 'bulan' && (<div style={styles.formGroup}><label style={styles.label}>Bulan</label><select value={rankingFilter.bulan} onChange={(e) => setRankingFilter({...rankingFilter, bulan: parseInt(e.target.value)})} style={styles.select}>{NAMA_BULAN.map((n, i) => <option key={i} value={i+1}>{n}</option>)}</select></div>)}
-                  <div style={styles.formGroup}><label style={styles.label}>Tahun</label><select value={rankingFilter.tahun} onChange={(e) => setRankingFilter({...rankingFilter, tahun: parseInt(e.target.value)})} style={styles.select}>{[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select></div>
+                  <div style={styles.formGroup}><label style={styles.label}>Tahun</label><select value={rankingFilter.tahun} onChange={(e) => setRankingFilter({...rankingFilter, tahun: parseInt(e.target.value)})} style={styles.select}>{TAHUN_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
                   <div style={styles.formGroup}><label style={styles.label}>Jenis Kegiatan</label><select value={rankingFilter.jenisKegiatan} onChange={(e) => setRankingFilter({...rankingFilter, jenisKegiatan: e.target.value})} style={styles.select}><option value="all">Semua</option><option value="minggu">Puja Bakti</option><option value="rabu">Meditasi</option></select></div>
                 </div>
                 <div style={{display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap'}}>
