@@ -174,7 +174,7 @@ export default function AdminPage() {
           .print-area, .print-area * { visibility: visible; }
           .print-area { 
   transform: scale(0.95); 
-  transform-origin: top center;
+  transform-origin: top left;
 }
           .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 6mm; }
           .no-print { display: none !important; }
