@@ -271,14 +271,74 @@ export default function AdminPage() {
     <main style={styles.container}>
       {/* CSS untuk Print */}
       <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          .print-area, .print-area * { visibility: visible; }
-          .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
-          .no-print { display: none !important; }
-          @page { size: A4 portrait; margin: 15mm; }
-        }
-      `}</style>
+  @media print {
+    body * { visibility: hidden; }
+    .print-area, .print-area * { visibility: visible; }
+    .print-area { 
+      position: absolute; 
+      left: 0; 
+      top: 0; 
+      width: 100%; 
+      padding: 10mm; 
+    }
+    .no-print { display: none !important; }
+    
+    @page { 
+      size: A4 portrait; 
+      margin: 10mm 12mm; 
+    }
+    
+    /* Kompak: perkecil font & padding */
+    .print-area h2 { 
+      font-size: 18px !important; 
+      margin: 8px 0 !important; 
+    }
+    .print-area table { 
+      font-size: 11px !important; 
+      width: 100% !important;
+    }
+    .print-area th { 
+      padding: 6px 8px !important; 
+      font-size: 11px !important; 
+    }
+    .print-area td { 
+      padding: 5px 8px !important; 
+      font-size: 11px !important; 
+    }
+    .print-area .kategori-badge { 
+      font-size: 10px !important; 
+      padding: 2px 6px !important; 
+    }
+    .print-area img { 
+      width: 40px !important; 
+      height: 40px !important; 
+    }
+    .print-area .legend-box { 
+      font-size: 10px !important; 
+      padding: 8px !important; 
+      margin-top: 10px !important; 
+    }
+    .print-area .footer-print { 
+      font-size: 9px !important; 
+      margin-top: 12px !important; 
+    }
+    
+    /* Cegah tabel terpotong */
+    table { 
+      page-break-inside: auto; 
+    }
+    tr { 
+      page-break-inside: avoid; 
+      page-break-after: auto; 
+    }
+    thead { 
+      display: table-header-group; 
+    }
+    tfoot { 
+      display: table-footer-group; 
+    }
+  }
+`}</style>
 
       <div style={styles.cardWide}>
         <div style={styles.header}>
